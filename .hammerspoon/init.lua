@@ -366,6 +366,6 @@ end
 -- letter to jump focus there. Great for "where did that window go".
 
 -- hs.hints.style = "vimperator"
-hs.hotkey.bind(hyper, "/", function()
-  hs.hints.windowHints()
-end)
+local function showWindowHints() hs.hints.windowHints() end
+hs.hotkey.bind(hyper, "/",  showWindowHints)
+hs.hotkey.bind({},    "help", showWindowHints)  -- bare Insert key
