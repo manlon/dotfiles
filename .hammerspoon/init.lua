@@ -285,6 +285,40 @@ hs.hotkey.bind(hyper, "]", function()
 end)
 
 ----------------------------------------------------------------------
+-- Cycle Spaces (hyper+Tab)
+----------------------------------------------------------------------
+-- Uses hs.spaces (private SkyLight APIs). gotoSpace is much more
+-- reliable with System Settings > Accessibility > Display > Reduce
+-- Motion enabled — otherwise the Mission Control animation races.
+
+-- Returns the next user-space ID after the currently focused one,
+-- wrapping around within the screen that owns the focused space.
+local function nextUserSpaceID()
+  local focused = hs.spaces.focusedSpace()
+  if not focused then return nil end
+  for _, spaces in pairs(hs.spaces.allSpaces() or {}) do
+    local userSpaces = {}
+    for _, sid in ipairs(spaces) do
+      if hs.spaces.spaceType(sid) == "user" then
+        table.insert(userSpaces, sid)
+      end
+    end
+    for i, sid in ipairs(userSpaces) do
+      if sid == focused then
+        if #userSpaces < 2 then return nil end
+        return userSpaces[(i % #userSpaces) + 1]
+      end
+    end
+  end
+  return nil
+end
+
+hs.hotkey.bind(hyper, "tab", function()
+  local sid = nextUserSpaceID()
+  if sid then hs.spaces.gotoSpace(sid) end
+end)
+
+----------------------------------------------------------------------
 -- Focus navigation (vim-style hjkl) — the AeroSpace replacement
 ----------------------------------------------------------------------
 -- These move keyboard focus to the window in the given direction,
