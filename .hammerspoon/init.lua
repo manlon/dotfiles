@@ -161,50 +161,59 @@ local function tileGrid()
   hs.alert.show("Tiled " .. n .. " window" .. (n == 1 and "" or "s"))
 end
 
--- Master-stack: focused window gets the left half; the rest stack
--- vertically on the right half.
-local function tileMasterStack()
-  local screen, wins, focused = windowsOnCurrentScreen()
-  if not screen or #wins == 0 then return end
-  local f = screen:frame()
+-- Master-stack: focused window gets one half; the rest stack
+-- vertically on the other half. masterSide is "left" or "right".
+local function tileMasterStack(masterSide)
+  return function()
+    local screen, wins, focused = windowsOnCurrentScreen()
+    if not screen or #wins == 0 then return end
+    local f = screen:frame()
 
-  -- Put focused window first so it becomes the master.
-  local ordered = { focused }
-  for _, w in ipairs(wins) do
-    if w:id() ~= focused:id() then table.insert(ordered, w) end
-  end
+    -- Put focused window first so it becomes the master.
+    local ordered = { focused }
+    for _, w in ipairs(wins) do
+      if w:id() ~= focused:id() then table.insert(ordered, w) end
+    end
 
-  if #ordered == 1 then
+    if #ordered == 1 then
+      ordered[1]:setFrame({
+        x = f.x + tileGap, y = f.y + tileGap,
+        w = f.w - 2 * tileGap, h = f.h - 2 * tileGap,
+      })
+      return
+    end
+
+    local halfW   = f.w / 2
+    local cellW   = halfW - 1.5 * tileGap
+    local leftX   = f.x + tileGap
+    local rightX  = f.x + halfW + 0.5 * tileGap
+    local masterX = (masterSide == "right") and rightX or leftX
+    local stackX  = (masterSide == "right") and leftX  or rightX
+
     ordered[1]:setFrame({
-      x = f.x + tileGap, y = f.y + tileGap,
-      w = f.w - 2 * tileGap, h = f.h - 2 * tileGap,
+      x = masterX,
+      y = f.y + tileGap,
+      w = cellW,
+      h = f.h - 2 * tileGap,
     })
-    return
-  end
 
-  local masterW = f.w / 2
-  ordered[1]:setFrame({
-    x = f.x + tileGap,
-    y = f.y + tileGap,
-    w = masterW - 1.5 * tileGap,
-    h = f.h - 2 * tileGap,
-  })
-
-  local stackN = #ordered - 1
-  local stackH = (f.h - tileGap * (stackN + 1)) / stackN
-  for i = 2, #ordered do
-    ordered[i]:setFrame({
-      x = f.x + masterW + 0.5 * tileGap,
-      y = f.y + tileGap + (i - 2) * (stackH + tileGap),
-      w = masterW - 1.5 * tileGap,
-      h = stackH,
-    })
+    local stackN = #ordered - 1
+    local stackH = (f.h - tileGap * (stackN + 1)) / stackN
+    for i = 2, #ordered do
+      ordered[i]:setFrame({
+        x = stackX,
+        y = f.y + tileGap + (i - 2) * (stackH + tileGap),
+        w = cellW,
+        h = stackH,
+      })
+    end
+    hs.alert.show("Master + " .. stackN .. " stacked")
   end
-  hs.alert.show("Master + " .. stackN .. " stacked")
 end
 
-hs.hotkey.bind(hyper,      "T", tileGrid)
-hs.hotkey.bind(hyperShift, "\\", tileMasterStack)
+hs.hotkey.bind(hyper,      "T",  tileGrid)
+hs.hotkey.bind(hyper,      "\\", tileMasterStack("left"))
+hs.hotkey.bind(hyperShift, "\\", tileMasterStack("right"))
 
 ----------------------------------------------------------------------
 -- Nudge the focused window (option + hjkl)
