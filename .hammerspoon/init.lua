@@ -26,7 +26,9 @@ local function reloadConfig(files)
   end
 end
 
-hs.pathwatcher.new(os.getenv("HOME") .. "/.hammerspoon/", reloadConfig):start()
+-- NOTE: must be kept in a persistent (global) variable — if the watcher
+-- object is GC'd, file watching silently stops.
+configWatcher = hs.pathwatcher.new(os.getenv("HOME") .. "/.hammerspoon/", reloadConfig):start()
 hs.alert.show("Hammerspoon config loaded")
 
 hs.hotkey.bind(hyper, "R", function() hs.reload() end)
@@ -226,6 +228,37 @@ hs.hotkey.bind({ "alt" }, "H", nudge(-nudgeStep, 0), nil, nudge(-nudgeStep, 0))
 hs.hotkey.bind({ "alt" }, "L", nudge( nudgeStep, 0), nil, nudge( nudgeStep, 0))
 hs.hotkey.bind({ "alt" }, "K", nudge(0, -nudgeStep), nil, nudge(0, -nudgeStep))
 hs.hotkey.bind({ "alt" }, "J", nudge(0,  nudgeStep), nil, nudge(0,  nudgeStep))
+
+----------------------------------------------------------------------
+-- Grow / shrink the focused window around its center
+----------------------------------------------------------------------
+-- hyper + =  makes the window a bit bigger
+-- hyper + -  makes the window a bit smaller
+-- Holds for auto-repeat. Clamped to the screen's usable frame.
+
+local resizeStep = 0.05  -- fraction of screen per tap (5% each dimension)
+local minSize    = 200   -- px; don't let the window disappear
+
+local function resize(factor)
+  return function()
+    local win = hs.window.focusedWindow()
+    if not win then return end
+    local s = win:screen():frame()
+    local f = win:frame()
+    local dw = s.w * resizeStep * factor
+    local dh = s.h * resizeStep * factor
+    local cx = f.x + f.w / 2
+    local cy = f.y + f.h / 2
+    local nw = math.max(minSize, math.min(s.w, f.w + dw))
+    local nh = math.max(minSize, math.min(s.h, f.h + dh))
+    local nx = math.max(s.x, math.min(s.x + s.w - nw, cx - nw / 2))
+    local ny = math.max(s.y, math.min(s.y + s.h - nh, cy - nh / 2))
+    win:setFrame({ x = nx, y = ny, w = nw, h = nh })
+  end
+end
+
+hs.hotkey.bind(hyper, "=", resize( 1), nil, resize( 1))
+hs.hotkey.bind(hyper, "-", resize(-1), nil, resize(-1))
 
 ----------------------------------------------------------------------
 -- Move between displays
