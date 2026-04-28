@@ -128,13 +128,11 @@ local function windowsOnCurrentScreen()
       table.insert(wins, w)
     end
   end
-  -- Order left-to-right, top-to-bottom by current position so the
-  -- grid layout is at least loosely related to what you see now.
-  table.sort(wins, function(a, b)
-    local fa, fb = a:frame(), b:frame()
-    if math.abs(fa.x - fb.x) > 50 then return fa.x < fb.x end
-    return fa.y < fb.y
-  end)
+  -- Sort by window ID so tiling is idempotent: nudging a window and
+  -- re-tiling snaps it back to the same cell instead of resorting by
+  -- current position and shuffling everything around. IDs are roughly
+  -- creation order, so newer windows land later in the grid.
+  table.sort(wins, function(a, b) return a:id() < b:id() end)
   return screen, wins, focused
 end
 
