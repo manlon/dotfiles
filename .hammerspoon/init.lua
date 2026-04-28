@@ -106,6 +106,7 @@ hs.hotkey.bind(hyper, "pad6", moveToRect(0.5, 0,   0.5, 1))    -- right half
 hs.hotkey.bind(hyper, "pad1", moveToRect(0,   0.5, 0.5, 0.5))  -- bottom-left
 hs.hotkey.bind(hyper, "pad2", moveToRect(0,   0.5, 1,   0.5))  -- bottom half
 hs.hotkey.bind(hyper, "pad3", moveToRect(0.5, 0.5, 0.5, 0.5))  -- bottom-right
+hs.hotkey.bind(hyper, "pad0", moveToRect(1/8, 1/8, 6/8, 6/8))
 
 ----------------------------------------------------------------------
 -- Re-tile the current screen
