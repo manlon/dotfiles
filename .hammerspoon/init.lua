@@ -68,6 +68,32 @@ local function moveToRect(x, y, w, h)
   end
 end
 
+-- Resolve fractional rect against a screen frame.
+local function rectOf(s, x, y, w, h)
+  return { x = s.x + s.w * x, y = s.y + s.h * y, w = s.w * w, h = s.h * h }
+end
+
+-- Toggle the focused window between two fractional rects. If it's already
+-- at (or close to) the first, move to the second; otherwise move to the
+-- first. Tolerance covers apps that don't quite honor setFrame.
+local function moveToRectToggle(a, b)
+  return function()
+    local win = hs.window.focusedWindow()
+    if not win then return end
+    local s = win:screen():frame()
+    local rectA = rectOf(s, a[1], a[2], a[3], a[4])
+    local rectB = rectOf(s, b[1], b[2], b[3], b[4])
+    local cur = win:frame()
+    local tol = 8
+    local atA =
+      math.abs(cur.x - rectA.x) < tol and
+      math.abs(cur.y - rectA.y) < tol and
+      math.abs(cur.w - rectA.w) < tol and
+      math.abs(cur.h - rectA.h) < tol
+    win:setFrame(atA and rectB or rectA)
+  end
+end
+
 -- Halves
 hs.hotkey.bind(hyper, "Left",  moveToRect(0,   0,   0.5, 1))
 hs.hotkey.bind(hyper, "Right", moveToRect(0.5, 0,   0.5, 1))
@@ -89,8 +115,9 @@ hs.hotkey.bind(hyper, "G", moveToRect(2/3,  0, 1/3, 1))  -- right third
 hs.hotkey.bind(hyperShift, "D", moveToRect(0,   0, 2/3, 1))  -- left two-thirds
 hs.hotkey.bind(hyperShift, "G", moveToRect(1/3, 0, 2/3, 1))  -- right two-thirds
 
--- Fullscreen / maximize the usable area (respects menu bar + Dock)
-hs.hotkey.bind(hyper, "M", moveToRect(0, 0, 1, 1))
+-- Fullscreen / maximize the usable area (respects menu bar + Dock).
+-- Press again while maximized to drop to the centered "comfortable" size.
+hs.hotkey.bind(hyper, "M", moveToRectToggle({ 0, 0, 1, 1 }, { 1/8, 1/8, 6/8, 6/8 }))
 
 -- Center at a comfortable size (good for floating utility windows)
 hs.hotkey.bind(hyper, "C", moveToRect(1/8, 1/8, 6/8, 6/8))
@@ -101,7 +128,7 @@ hs.hotkey.bind(hyper, "pad7", moveToRect(0,   0,   0.5, 0.5))  -- top-left
 hs.hotkey.bind(hyper, "pad8", moveToRect(0,   0,   1,   0.5))  -- top half
 hs.hotkey.bind(hyper, "pad9", moveToRect(0.5, 0,   0.5, 0.5))  -- top-right
 hs.hotkey.bind(hyper, "pad4", moveToRect(0,   0,   0.5, 1))    -- left half
-hs.hotkey.bind(hyper, "pad5", moveToRect(0,   0,   1,   1))    -- maximize
+hs.hotkey.bind(hyper, "pad5", moveToRectToggle({ 0, 0, 1, 1 }, { 1/8, 1/8, 6/8, 6/8 }))  -- maximize / toggle to centered
 hs.hotkey.bind(hyper, "pad6", moveToRect(0.5, 0,   0.5, 1))    -- right half
 hs.hotkey.bind(hyper, "pad1", moveToRect(0,   0.5, 0.5, 0.5))  -- bottom-left
 hs.hotkey.bind(hyper, "pad2", moveToRect(0,   0.5, 1,   0.5))  -- bottom half
