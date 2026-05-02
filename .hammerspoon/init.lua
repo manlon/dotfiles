@@ -116,7 +116,33 @@ local function undoLastMove()
   end
 end
 
-hs.hotkey.bind(hyper, "U", undoLastMove, nil, undoLastMove)
+-- Pop the most recently moved window's stack, regardless of focus.
+-- Walks the LRU tail, skipping (and pruning) entries whose window has
+-- closed. Shows a brief alert since the affected window may not be
+-- on-screen of the user's focus.
+local function undoLastMoveAnyWindow()
+  while #undoOrder > 0 do
+    local id = undoOrder[#undoOrder]
+    local stack = undoStacks[id]
+    local win = stack and #stack > 0 and hs.window.get(id) or nil
+    if win then
+      win:setFrame(table.remove(stack))
+      local app = win:application()
+      hs.alert.show("Undo: " .. (app and app:name() or "window"))
+      if #stack == 0 then
+        undoStacks[id] = nil
+        table.remove(undoOrder)
+      end
+      return
+    end
+    -- Stale or empty entry — drop it and try the next.
+    undoStacks[id] = nil
+    table.remove(undoOrder)
+  end
+end
+
+hs.hotkey.bind(hyper,      "U", undoLastMove,          nil, undoLastMove)
+hs.hotkey.bind(hyperShift, "U", undoLastMoveAnyWindow, nil, undoLastMoveAnyWindow)
 
 ----------------------------------------------------------------------
 -- Window movement helpers
