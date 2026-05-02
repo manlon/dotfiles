@@ -270,7 +270,8 @@ local tileGap = 8  -- px between tiled windows (and screen edge)
 -- Target aspect ratio (w/h) for individual cells in tileGrid. 1.6 ≈ 16:10
 -- feels comfortable for most app windows. Lower values prefer taller
 -- cells (more rows, fewer cols); higher values prefer wider cells.
-local tileTargetAspect = 1.6
+local tileTargetAspect     = 1.2
+local tileTargetAspectTall = 0.4   -- tall/narrow cells; e.g. for code panes on ultrawides
 
 local function windowsOnCurrentScreen()
   local focused = hs.window.focusedWindow()
@@ -307,19 +308,19 @@ local function distributeColumns(n, cols)
 end
 
 -- Pick `cols` to minimize the average distance between actual cell
--- aspect ratios (after uneven distribution) and tileTargetAspect.
+-- aspect ratios (after uneven distribution) and the target aspect.
 -- Cells in different columns may have different heights, so we score
 -- each column's cell aspect individually and average. This generalizes
 -- the old uniform-grid scoring and avoids picking grids that produce
 -- ugly portrait stragglers.
-local function chooseGridCols(n, screenAspect)
+local function chooseGridCols(n, screenAspect, targetAspect)
   local bestCols, bestScore = 1, math.huge
   for cols = 1, n do
     local rowsPerCol = distributeColumns(n, cols)
     local total = 0
     for _, rowsInCol in ipairs(rowsPerCol) do
       local cellAspect = screenAspect * rowsInCol / cols
-      total = total + math.abs(math.log(cellAspect / tileTargetAspect))
+      total = total + math.abs(math.log(cellAspect / targetAspect))
     end
     local score = total / cols
     if score < bestScore then
@@ -331,13 +332,15 @@ end
 
 -- Grid tile: pick the column count that gives the best average cell
 -- aspect, then size each column's cells independently so every window
--- gets a slot and no space is wasted.
-local function tileGrid()
+-- gets a slot and no space is wasted. Optional targetAspect overrides
+-- the default (e.g. tileTargetAspectTall for narrow code-pane layouts).
+local function tileGrid(targetAspect)
+  targetAspect = targetAspect or tileTargetAspect
   local screen, wins = windowsOnCurrentScreen()
   if not screen or #wins == 0 then return end
   local f = screen:frame()
   local n = #wins
-  local cols = chooseGridCols(n, f.w / f.h)
+  local cols = chooseGridCols(n, f.w / f.h, targetAspect)
   local rowsPerCol = distributeColumns(n, cols)
   local cellW = (f.w - tileGap * (cols + 1)) / cols
   local idx = 1
@@ -409,6 +412,7 @@ local function tileMasterStack(masterSide)
 end
 
 hs.hotkey.bind(hyper,      "T",  tileGrid)
+hs.hotkey.bind(hyperShift, "T",  function() tileGrid(tileTargetAspectTall) end)
 hs.hotkey.bind(hyper,      "\\", tileMasterStack("left"))
 hs.hotkey.bind(hyperShift, "\\", tileMasterStack("right"))
 
@@ -552,8 +556,10 @@ hs.hotkey.bind({ "alt" }, "pad2", focusDir("focusWindowSouth"))
 -- hyper+<letter> launches the app if it isn't running, otherwise
 -- focuses it. Edit this table to taste.
 
+-- hyperShift+T is reserved for the tall-grid tile, so Ghostty moved
+-- one key over to hyperShift+Y.
 local appBindings = {
-  T = "Ghostty",       -- or "iTerm", "Terminal", "Alacritty", etc.
+  Y = "Ghostty",
   E = "Zed",
   B = "Google Chrome",
   S = "Slack",
