@@ -195,25 +195,69 @@ local function windowsOnCurrentScreen()
   return screen, wins, focused
 end
 
--- Grid tile: evenly distribute windows into a near-square grid.
+-- Distribute n windows across `cols` columns. The first (n mod cols)
+-- columns get one extra row; the remainder get the floor. Returns a
+-- per-column row count whose sum is exactly n — no empty cells.
+--
+-- E.g. n=9, cols=4 -> {3, 2, 2, 2}. The first column stacks 3 windows
+-- at 1/3 height while the other three stack 2 each at 1/2 height.
+local function distributeColumns(n, cols)
+  local base, extra = math.floor(n / cols), n % cols
+  local rowsPerCol = {}
+  for c = 1, cols do
+    rowsPerCol[c] = base + (c <= extra and 1 or 0)
+  end
+  return rowsPerCol
+end
+
+-- Pick `cols` to minimize the average distance between actual cell
+-- aspect ratios (after uneven distribution) and tileTargetAspect.
+-- Cells in different columns may have different heights, so we score
+-- each column's cell aspect individually and average. This generalizes
+-- the old uniform-grid scoring and avoids picking grids that produce
+-- ugly portrait stragglers.
+local function chooseGridCols(n, screenAspect)
+  local bestCols, bestScore = 1, math.huge
+  for cols = 1, n do
+    local rowsPerCol = distributeColumns(n, cols)
+    local total = 0
+    for _, rowsInCol in ipairs(rowsPerCol) do
+      local cellAspect = screenAspect * rowsInCol / cols
+      total = total + math.abs(math.log(cellAspect / tileTargetAspect))
+    end
+    local score = total / cols
+    if score < bestScore then
+      bestCols, bestScore = cols, score
+    end
+  end
+  return bestCols
+end
+
+-- Grid tile: pick the column count that gives the best average cell
+-- aspect, then size each column's cells independently so every window
+-- gets a slot and no space is wasted.
 local function tileGrid()
   local screen, wins = windowsOnCurrentScreen()
   if not screen or #wins == 0 then return end
   local f = screen:frame()
   local n = #wins
-  local cols = math.ceil(math.sqrt(n))
-  local rows = math.ceil(n / cols)
+  local cols = chooseGridCols(n, f.w / f.h)
+  local rowsPerCol = distributeColumns(n, cols)
   local cellW = (f.w - tileGap * (cols + 1)) / cols
-  local cellH = (f.h - tileGap * (rows + 1)) / rows
-  for i, win in ipairs(wins) do
-    local col = (i - 1) % cols
-    local row = math.floor((i - 1) / cols)
-    win:setFrame({
-      x = f.x + tileGap + col * (cellW + tileGap),
-      y = f.y + tileGap + row * (cellH + tileGap),
-      w = cellW,
-      h = cellH,
-    })
+  local idx = 1
+  for c = 1, cols do
+    local rowsInCol = rowsPerCol[c]
+    local cellH = (f.h - tileGap * (rowsInCol + 1)) / rowsInCol
+    local x = f.x + tileGap + (c - 1) * (cellW + tileGap)
+    for r = 1, rowsInCol do
+      wins[idx]:setFrame({
+        x = x,
+        y = f.y + tileGap + (r - 1) * (cellH + tileGap),
+        w = cellW,
+        h = cellH,
+      })
+      idx = idx + 1
+    end
   end
   hs.alert.show("Tiled " .. n .. " window" .. (n == 1 and "" or "s"))
 end
