@@ -68,6 +68,29 @@ local function moveToRect(x, y, w, h)
   end
 end
 
+-- Aspect ratio above which a screen is treated as "wide" (ultrawide
+-- territory). 16:9 ≈ 1.78, 16:10 = 1.6, 21:9 ≈ 2.33, 32:9 ≈ 3.56 — so
+-- 2.0 cleanly separates laptop/standard displays from ultrawides.
+local wideScreenAspect = 2.0
+
+-- Like moveToRect, but picks rect based on the focused window's screen.
+-- Each arg is a { x, y, w, h } table of 0..1 fractions. Resolved at call
+-- time so dragging a window between displays just works.
+local function moveToRectByScreen(normal, wide)
+  return function()
+    local win = hs.window.focusedWindow()
+    if not win then return end
+    local f = win:screen():frame()
+    local r = (f.w / f.h > wideScreenAspect) and wide or normal
+    win:setFrame({
+      x = f.x + f.w * r[1],
+      y = f.y + f.h * r[2],
+      w = f.w * r[3],
+      h = f.h * r[4],
+    })
+  end
+end
+
 -- Resolve fractional rect against a screen frame.
 local function rectOf(s, x, y, w, h)
   return { x = s.x + s.w * x, y = s.y + s.h * y, w = s.w * w, h = s.h * h }
@@ -124,16 +147,20 @@ hs.hotkey.bind(hyper, "C", moveToRect(1/8, 1/8, 6/8, 6/8))
 
 -- Numpad layout mirrors screen regions: 7/8/9 top row, 4/5/6 middle,
 -- 1/2/3 bottom row. Requires Num Lock on.
-hs.hotkey.bind(hyper, "pad7", moveToRect(0,   0,   0.5, 0.5))  -- top-left
-hs.hotkey.bind(hyper, "pad8", moveToRect(0,   0,   1,   0.5))  -- top half
-hs.hotkey.bind(hyper, "pad9", moveToRect(0.5, 0,   0.5, 0.5))  -- top-right
-hs.hotkey.bind(hyper, "pad4", moveToRect(0,   0,   0.5, 1))    -- left half
-hs.hotkey.bind(hyper, "pad5", moveToRectToggle({ 0, 0, 1, 1 }, { 1/8, 1/8, 6/8, 6/8 }))  -- maximize / toggle to centered
-hs.hotkey.bind(hyper, "pad6", moveToRect(0.5, 0,   0.5, 1))    -- right half
-hs.hotkey.bind(hyper, "pad1", moveToRect(0,   0.5, 0.5, 0.5))  -- bottom-left
-hs.hotkey.bind(hyper, "pad2", moveToRect(0,   0.5, 1,   0.5))  -- bottom half
-hs.hotkey.bind(hyper, "pad3", moveToRect(0.5, 0.5, 0.5, 0.5))  -- bottom-right
-hs.hotkey.bind(hyper, "pad0", moveToRect(1/8, 1/8, 6/8, 6/8))
+--
+-- On standard displays this is a 2x2 grid (halves + quarters). On
+-- ultrawides it's a 3x2 grid (vertical thirds, full or half height) —
+-- halves are awkwardly large on wide screens.
+hs.hotkey.bind(hyper, "pad7", moveToRectByScreen({ 0,   0,   0.5, 0.5 }, { 0,   0,   1/3, 0.5 }))
+hs.hotkey.bind(hyper, "pad8", moveToRectByScreen({ 0,   0,   1,   0.5 }, { 1/3, 0,   1/3, 0.5 }))
+hs.hotkey.bind(hyper, "pad9", moveToRectByScreen({ 0.5, 0,   0.5, 0.5 }, { 2/3, 0,   1/3, 0.5 }))
+hs.hotkey.bind(hyper, "pad4", moveToRectByScreen({ 0,   0,   0.5, 1   }, { 0,   0,   1/3, 1   }))
+hs.hotkey.bind(hyper, "pad5", moveToRectByScreen({ 1/8, 1/8, 6/8, 6/8 }, { 1/3, 0,   1/3, 1   }))
+hs.hotkey.bind(hyper, "pad6", moveToRectByScreen({ 0.5, 0,   0.5, 1   }, { 2/3, 0,   1/3, 1   }))
+hs.hotkey.bind(hyper, "pad1", moveToRectByScreen({ 0,   0.5, 0.5, 0.5 }, { 0,   0.5, 1/3, 0.5 }))
+hs.hotkey.bind(hyper, "pad2", moveToRectByScreen({ 0,   0.5, 1,   0.5 }, { 1/3, 0.5, 1/3, 0.5 }))
+hs.hotkey.bind(hyper, "pad3", moveToRectByScreen({ 0.5, 0.5, 0.5, 0.5 }, { 2/3, 0.5, 1/3, 0.5 }))
+hs.hotkey.bind(hyper, "pad0", moveToRectToggle({ 0, 0, 1, 1 }, { 1/8, 1/8, 6/8, 6/8 }))  -- maximize / toggle to centered
 
 ----------------------------------------------------------------------
 -- Re-tile the current screen
@@ -143,6 +170,11 @@ hs.hotkey.bind(hyper, "pad0", moveToRect(1/8, 1/8, 6/8, 6/8))
 -- window's screen; other screens are untouched.
 
 local tileGap = 8  -- px between tiled windows (and screen edge)
+
+-- Target aspect ratio (w/h) for individual cells in tileGrid. 1.6 ≈ 16:10
+-- feels comfortable for most app windows. Lower values prefer taller
+-- cells (more rows, fewer cols); higher values prefer wider cells.
+local tileTargetAspect = 1.6
 
 local function windowsOnCurrentScreen()
   local focused = hs.window.focusedWindow()
