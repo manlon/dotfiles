@@ -61,7 +61,7 @@ hs.execute(
 -- so holding hyper+U unwinds a held move at the same cadence.
 
 local maxUndoWindows = 32
-local maxUndoDepth   = 20
+local maxUndoDepth   = 100
 
 local undoStacks = {}  -- [winID] = { frame, frame, ... } oldest first
 local undoOrder  = {}  -- winIDs in MRU order, most recent at end
