@@ -77,14 +77,22 @@ local function touchUndoOrder(winID)
   end
 end
 
-local function framesEqual(a, b)
-  return a.x == b.x and a.y == b.y and a.w == b.w and a.h == b.h
+-- Tolerance covers subpixel rounding (frame() returns the OS-rounded
+-- frame; the requested rect is float math) and apps that snap to grid
+-- cells (e.g. terminals to character widths). Without this, repeated
+-- presses of the same binding stack near-duplicate frames.
+local function framesNear(a, b)
+  local tol = 8
+  return math.abs(a.x - b.x) < tol
+    and math.abs(a.y - b.y) < tol
+    and math.abs(a.w - b.w) < tol
+    and math.abs(a.h - b.h) < tol
 end
 
 -- Like win:setFrame, but records the prior frame for hyper+U to pop.
 local function setFrameTracked(win, frame)
   local prev = win:frame()
-  if framesEqual(prev, frame) then return end
+  if framesNear(prev, frame) then return end
   local id = win:id()
   if id then
     local stack = undoStacks[id]
