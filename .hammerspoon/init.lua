@@ -436,11 +436,12 @@ hs.hotkey.bind({ "alt" }, "L", nudge( nudgeStep, 0), nil, nudge( nudgeStep, 0))
 hs.hotkey.bind({ "alt" }, "K", nudge(0, -nudgeStep), nil, nudge(0, -nudgeStep))
 hs.hotkey.bind({ "alt" }, "J", nudge(0,  nudgeStep), nil, nudge(0,  nudgeStep))
 
--- Numpad mirror: 8/4/6/2 = up/left/right/down. Same step, same auto-repeat.
-hs.hotkey.bind({ "alt" }, "pad4", nudge(-nudgeStep, 0), nil, nudge(-nudgeStep, 0))
-hs.hotkey.bind({ "alt" }, "pad6", nudge( nudgeStep, 0), nil, nudge( nudgeStep, 0))
-hs.hotkey.bind({ "alt" }, "pad8", nudge(0, -nudgeStep), nil, nudge(0, -nudgeStep))
-hs.hotkey.bind({ "alt" }, "pad2", nudge(0,  nudgeStep), nil, nudge(0,  nudgeStep))
+-- Numpad mirror: shift+alt+8/4/6/2 = up/left/right/down. Same step,
+-- same auto-repeat. Bare alt+pad4/6/8/2 is reserved for focus nav.
+hs.hotkey.bind({ "shift", "alt" }, "pad4", nudge(-nudgeStep, 0), nil, nudge(-nudgeStep, 0))
+hs.hotkey.bind({ "shift", "alt" }, "pad6", nudge( nudgeStep, 0), nil, nudge( nudgeStep, 0))
+hs.hotkey.bind({ "shift", "alt" }, "pad8", nudge(0, -nudgeStep), nil, nudge(0, -nudgeStep))
+hs.hotkey.bind({ "shift", "alt" }, "pad2", nudge(0,  nudgeStep), nil, nudge(0,  nudgeStep))
 
 ----------------------------------------------------------------------
 -- Grow / shrink the focused window around its center
@@ -525,24 +526,25 @@ end)
 -- Focus navigation (vim-style hjkl) — the AeroSpace replacement
 ----------------------------------------------------------------------
 -- These move keyboard focus to the window in the given direction,
--- across all visible windows on all screens.
+-- across all visible windows on all screens. Bound to both hyper+hjkl
+-- and bare alt+pad4/6/8/2 (numpad mirror).
 
-hs.hotkey.bind(hyper, "H", function()
-  local win = hs.window.focusedWindow()
-  if win then win:focusWindowWest(nil, true, true) end
-end)
-hs.hotkey.bind(hyper, "L", function()
-  local win = hs.window.focusedWindow()
-  if win then win:focusWindowEast(nil, true, true) end
-end)
-hs.hotkey.bind(hyper, "K", function()
-  local win = hs.window.focusedWindow()
-  if win then win:focusWindowNorth(nil, true, true) end
-end)
-hs.hotkey.bind(hyper, "J", function()
-  local win = hs.window.focusedWindow()
-  if win then win:focusWindowSouth(nil, true, true) end
-end)
+local function focusDir(method)
+  return function()
+    local win = hs.window.focusedWindow()
+    if win then win[method](win, nil, true, true) end
+  end
+end
+
+hs.hotkey.bind(hyper, "H", focusDir("focusWindowWest"))
+hs.hotkey.bind(hyper, "L", focusDir("focusWindowEast"))
+hs.hotkey.bind(hyper, "K", focusDir("focusWindowNorth"))
+hs.hotkey.bind(hyper, "J", focusDir("focusWindowSouth"))
+
+hs.hotkey.bind({ "alt" }, "pad4", focusDir("focusWindowWest"))
+hs.hotkey.bind({ "alt" }, "pad6", focusDir("focusWindowEast"))
+hs.hotkey.bind({ "alt" }, "pad8", focusDir("focusWindowNorth"))
+hs.hotkey.bind({ "alt" }, "pad2", focusDir("focusWindowSouth"))
 
 ----------------------------------------------------------------------
 -- App launcher / focuser
