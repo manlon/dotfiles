@@ -49,6 +49,76 @@ hs.execute(
 )
 
 ----------------------------------------------------------------------
+-- Window movement undo
+----------------------------------------------------------------------
+-- Move helpers funnel through setFrameTracked, which pushes the
+-- pre-move frame onto a per-window stack. hyper+U pops and restores.
+-- Bounded by maxUndoWindows × maxUndoDepth — once we hit either cap
+-- the LRU window (or oldest frame) is dropped, so the table never
+-- grows without bound.
+--
+-- Held-key bindings (nudge, resize) push on every auto-repeat tick,
+-- so holding hyper+U unwinds a held move at the same cadence.
+
+local maxUndoWindows = 32
+local maxUndoDepth   = 20
+
+local undoStacks = {}  -- [winID] = { frame, frame, ... } oldest first
+local undoOrder  = {}  -- winIDs in MRU order, most recent at end
+
+local function touchUndoOrder(winID)
+  for i, id in ipairs(undoOrder) do
+    if id == winID then table.remove(undoOrder, i); break end
+  end
+  table.insert(undoOrder, winID)
+  while #undoOrder > maxUndoWindows do
+    local evicted = table.remove(undoOrder, 1)
+    undoStacks[evicted] = nil
+  end
+end
+
+local function framesEqual(a, b)
+  return a.x == b.x and a.y == b.y and a.w == b.w and a.h == b.h
+end
+
+-- Like win:setFrame, but records the prior frame for hyper+U to pop.
+local function setFrameTracked(win, frame)
+  local prev = win:frame()
+  if framesEqual(prev, frame) then return end
+  local id = win:id()
+  if id then
+    local stack = undoStacks[id]
+    if not stack then
+      stack = {}
+      undoStacks[id] = stack
+    end
+    table.insert(stack, prev)
+    while #stack > maxUndoDepth do table.remove(stack, 1) end
+    touchUndoOrder(id)
+  end
+  win:setFrame(frame)
+end
+
+local function undoLastMove()
+  local win = hs.window.focusedWindow()
+  if not win then return end
+  local id = win:id()
+  if not id then return end
+  local stack = undoStacks[id]
+  if not stack or #stack == 0 then return end
+  -- Direct setFrame: undoing isn't itself undoable (no redo, by design).
+  win:setFrame(table.remove(stack))
+  if #stack == 0 then
+    undoStacks[id] = nil
+    for i, oid in ipairs(undoOrder) do
+      if oid == id then table.remove(undoOrder, i); break end
+    end
+  end
+end
+
+hs.hotkey.bind(hyper, "U", undoLastMove, nil, undoLastMove)
+
+----------------------------------------------------------------------
 -- Window movement helpers
 ----------------------------------------------------------------------
 
@@ -59,7 +129,7 @@ local function moveToRect(x, y, w, h)
     local win = hs.window.focusedWindow()
     if not win then return end
     local f = win:screen():frame()
-    win:setFrame({
+    setFrameTracked(win, {
       x = f.x + (f.w * x),
       y = f.y + (f.h * y),
       w = f.w * w,
@@ -82,7 +152,7 @@ local function moveToRectByScreen(normal, wide)
     if not win then return end
     local f = win:screen():frame()
     local r = (f.w / f.h > wideScreenAspect) and wide or normal
-    win:setFrame({
+    setFrameTracked(win, {
       x = f.x + f.w * r[1],
       y = f.y + f.h * r[2],
       w = f.w * r[3],
@@ -113,7 +183,7 @@ local function moveToRectToggle(a, b)
       math.abs(cur.y - rectA.y) < tol and
       math.abs(cur.w - rectA.w) < tol and
       math.abs(cur.h - rectA.h) < tol
-    win:setFrame(atA and rectB or rectA)
+    setFrameTracked(win, atA and rectB or rectA)
   end
 end
 
@@ -250,7 +320,7 @@ local function tileGrid()
     local cellH = (f.h - tileGap * (rowsInCol + 1)) / rowsInCol
     local x = f.x + tileGap + (c - 1) * (cellW + tileGap)
     for r = 1, rowsInCol do
-      wins[idx]:setFrame({
+      setFrameTracked(wins[idx], {
         x = x,
         y = f.y + tileGap + (r - 1) * (cellH + tileGap),
         w = cellW,
@@ -277,7 +347,7 @@ local function tileMasterStack(masterSide)
     end
 
     if #ordered == 1 then
-      ordered[1]:setFrame({
+      setFrameTracked(ordered[1], {
         x = f.x + tileGap, y = f.y + tileGap,
         w = f.w - 2 * tileGap, h = f.h - 2 * tileGap,
       })
@@ -291,7 +361,7 @@ local function tileMasterStack(masterSide)
     local masterX = (masterSide == "right") and rightX or leftX
     local stackX  = (masterSide == "right") and leftX  or rightX
 
-    ordered[1]:setFrame({
+    setFrameTracked(ordered[1], {
       x = masterX,
       y = f.y + tileGap,
       w = cellW,
@@ -301,7 +371,7 @@ local function tileMasterStack(masterSide)
     local stackN = #ordered - 1
     local stackH = (f.h - tileGap * (stackN + 1)) / stackN
     for i = 2, #ordered do
-      ordered[i]:setFrame({
+      setFrameTracked(ordered[i], {
         x = stackX,
         y = f.y + tileGap + (i - 2) * (stackH + tileGap),
         w = cellW,
@@ -331,7 +401,7 @@ local function nudge(dx, dy)
     local f = win:frame()
     f.x = f.x + dx
     f.y = f.y + dy
-    win:setFrame(f)
+    setFrameTracked(win, f)
   end
 end
 
@@ -364,7 +434,7 @@ local function resize(factor)
     local nh = math.max(minSize, math.min(s.h, f.h + dh))
     local nx = math.max(s.x, math.min(s.x + s.w - nw, cx - nw / 2))
     local ny = math.max(s.y, math.min(s.y + s.h - nh, cy - nh / 2))
-    win:setFrame({ x = nx, y = ny, w = nw, h = nh })
+    setFrameTracked(win, { x = nx, y = ny, w = nw, h = nh })
   end
 end
 
