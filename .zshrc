@@ -1,3 +1,10 @@
+# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
+# Initialization code that may require console input (password prompts, [y/n]
+# confirmations, etc.) must go above this block; everything else may go below.
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
+
 # If you come from bash you might have to change your $PATH.
 # export PATH=$HOME/bin:/usr/local/bin:$PATH
 
@@ -8,7 +15,8 @@ export ZSH="$HOME/.oh-my-zsh"
 # load a random theme each time oh-my-zsh is loaded, in which case,
 # to know which specific one was loaded, run: echo $RANDOM_THEME
 # See https://github.com/ohmyzsh/ohmyzsh/wiki/Themes
-ZSH_THEME="robbyrussell"
+#ZSH_THEME="robbyrussell"
+ZSH_THEME="powerlevel10k/powerlevel10k"
 
 # Set list of themes to pick from when loading at random
 # Setting this variable when ZSH_THEME=random will cause zsh to load
@@ -70,7 +78,18 @@ ZSH_THEME="robbyrussell"
 # Custom plugins may be added to $ZSH_CUSTOM/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
-plugins=(git)
+
+
+#. /opt/homebrew/opt/asdf/libexec/asdf.sh
+# PATH=$(dirname -- $(asdf which virtualenvwrapper_lazy.sh)):$PATH \
+#
+PATH="$HOME/.local/share/mise/installs/python/latest/bin:$PATH"
+
+if [[ -z "${ZED_TERM}" && -z "${VSCODE_INJECTION}" ]]; then
+    plugins=(git virtualenvwrapper)
+else
+    plugins=(git)
+fi
 
 source $ZSH/oh-my-zsh.sh
 
@@ -91,7 +110,7 @@ source $ZSH/oh-my-zsh.sh
 # Compilation flags
 # export ARCHFLAGS="-arch x86_64"
 
-export RUBY_CONFIGURE_OPTS="--with-zlib-dir=$(brew --prefix zlib) --with-openssl-dir=$(brew --prefix openssl@1.1) --with-readline-dir=$(brew --prefix readline) --with-libyaml-dir=$(brew --prefix libyaml)"
+export RUBY_CONFIGURE_OPTS="--with-zlib-dir=$(brew --prefix zlib) --with-openssl-dir=$(brew --prefix openssl@3) --with-readline-dir=$(brew --prefix readline) --with-libyaml-dir=$(brew --prefix libyaml)"
 export RUBY_CFLAGS="-Wno-error=implicit-function-declaration"
 
 # Set personal aliases, overriding those provided by oh-my-zsh libs,
@@ -103,7 +122,6 @@ export RUBY_CFLAGS="-Wno-error=implicit-function-declaration"
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 
-. /opt/homebrew/opt/asdf/libexec/asdf.sh
 
 # bun completions
 [ -s "/Users/hanlon/.bun/_bun" ] && source "/Users/hanlon/.bun/_bun"
@@ -117,3 +135,134 @@ export ERL_AFLAGS="-kernel shell_history enabled"
 test -e "${HOME}/.iterm2_shell_integration.zsh" && source "${HOME}/.iterm2_shell_integration.zsh"
 
 export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"
+
+# [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+
+  . /opt/homebrew/etc/profile.d/z.sh
+
+alias cat=bat
+alias exa=eza
+alias lt='eza -al -snewest'
+alias ll='eza -l'
+eval "$(atuin init zsh)"
+
+eval "$(mise activate zsh)"
+
+alias bnp='bat --no-paging'
+
+alias jjd='jj diff'
+alias jjdc="jj diff -r cur"
+alias jjds="jj diff -s -r cur"
+alias jjf='jj git fetch'
+alias jjr='jj rebase -b @ -d main'
+alias jjb="jj log -r 'ancestors(@) & bookmarks()' --limit 1 -T 'bookmarks.map(|b| b.name()).join(\" \")' --no-graph"
+alias jjsc="jj show cur"
+alias jjrm="jj rebase -o main"
+alias jjlm="jj log -r mine"
+alias jjsa="/Users/hanlon/.local/bin/jj-snapshot-all"
+
+# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
+[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+autoload -Uz compinit && compinit
+
+export EDITOR=vim
+
+# Added by Antigravity
+export PATH="/Users/hanlon/.antigravity/antigravity/bin:$PATH"
+
+
+# Create a new worktree and branch from within current git directory or worktree.
+gwa() {
+  if [[ -z "$1" ]]; then
+    echo "Usage: gwa [branch name]"
+    return 1
+  fi
+
+  local branch="$1"
+  local base="$(basename "$PWD")"
+  local root="${base%%--*}"  # Extract base project name (works from main repo or worktree)
+  local safe_branch="${branch//\//-}"
+  local wt_path="../${root}--${safe_branch}"
+  local source_dir="$PWD"
+
+  git worktree add -b "$branch" "$wt_path"
+
+  # Copy priv/repo if it exists (for Phoenix dev setup)
+  if [[ -d "$source_dir/priv/repo" ]]; then
+    cp -r "$source_dir/priv/repo/." "$wt_path/priv/repo/"
+  fi
+
+  mise trust "$wt_path"
+  cd "$wt_path"
+}
+
+
+# Rename current worktree and its branch.
+gwr() {
+  if [[ -z "$1" ]]; then
+    echo "Usage: gwr [new branch name]"
+    return 1
+  fi
+
+  local new_branch="$1"
+  local cwd="$(pwd)"
+  local worktree="$(basename "$cwd")"
+  local root="${worktree%%--*}"
+
+  # Get current branch name
+  local old_branch="$(git symbolic-ref --short HEAD 2>/dev/null)"
+
+  if [[ -z "$old_branch" ]]; then
+    echo "Not on a branch"
+    return 1
+  fi
+
+  # Check we're in a worktree (not the main repo)
+  if [[ "$root" == "$worktree" ]]; then
+    echo "Not a worktree"
+    return 1
+  fi
+
+  # Create safe branch name for directory (replace / with -)
+  local safe_branch="${new_branch//\//-}"
+  local new_wt_path="$(dirname "$cwd")/${root}--${safe_branch}"
+
+  # Rename the branch
+  git branch -m "$old_branch" "$new_branch"
+
+  # Move the directory and repair worktree references
+  cd ..
+  mv "$cwd" "$new_wt_path"
+  cd "$new_wt_path"
+  git worktree repair
+}
+
+
+# Remove worktree and branch from within active worktree directory.
+gwd() {
+  if gum confirm "Remove worktree and branch?"; then
+    local cwd worktree branch root
+
+    cwd="$(pwd)"
+    worktree="$(basename "$cwd")"
+
+    # Get actual branch name from git (handles slashes correctly)
+    branch="$(git symbolic-ref --short HEAD 2>/dev/null)"
+
+    if [[ -z "$branch" ]]; then
+      echo "Not on a branch"
+      return 1
+    fi
+
+    root="${worktree%%--*}"
+
+    if [[ "$root" != "$worktree" ]]; then
+      cd "../$root"
+      git worktree remove "$cwd" --force  # Use absolute path
+      git branch -D "$branch"
+    else
+      echo "not a worktree"
+      return 1
+    fi
+  fi
+}
