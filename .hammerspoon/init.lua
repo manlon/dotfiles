@@ -436,6 +436,12 @@ hs.hotkey.bind({ "alt" }, "L", nudge( nudgeStep, 0), nil, nudge( nudgeStep, 0))
 hs.hotkey.bind({ "alt" }, "K", nudge(0, -nudgeStep), nil, nudge(0, -nudgeStep))
 hs.hotkey.bind({ "alt" }, "J", nudge(0,  nudgeStep), nil, nudge(0,  nudgeStep))
 
+-- Numpad mirror: 8/4/6/2 = up/left/right/down. Same step, same auto-repeat.
+hs.hotkey.bind({ "alt" }, "pad4", nudge(-nudgeStep, 0), nil, nudge(-nudgeStep, 0))
+hs.hotkey.bind({ "alt" }, "pad6", nudge( nudgeStep, 0), nil, nudge( nudgeStep, 0))
+hs.hotkey.bind({ "alt" }, "pad8", nudge(0, -nudgeStep), nil, nudge(0, -nudgeStep))
+hs.hotkey.bind({ "alt" }, "pad2", nudge(0,  nudgeStep), nil, nudge(0,  nudgeStep))
+
 ----------------------------------------------------------------------
 -- Grow / shrink the focused window around its center
 ----------------------------------------------------------------------
