@@ -419,10 +419,12 @@ local function tileMasterStack(masterSide)
   end
 end
 
-hs.hotkey.bind(hyper,      "T",  tileGrid)
-hs.hotkey.bind(hyperShift, "T",  function() tileGrid(tileTargetAspectTall) end)
-hs.hotkey.bind(hyper,      "\\", tileMasterStack("left"))
-hs.hotkey.bind(hyperShift, "\\", tileMasterStack("right"))
+hs.hotkey.bind(hyper,      "T",    tileGrid)
+hs.hotkey.bind(hyperShift, "T",    function() tileGrid(tileTargetAspectTall) end)
+hs.hotkey.bind(hyper,      "pad/", tileGrid)
+hs.hotkey.bind(hyper,      "pad*", function() tileGrid(tileTargetAspectTall) end)
+hs.hotkey.bind(hyper,      "\\",   tileMasterStack("left"))
+hs.hotkey.bind(hyperShift, "\\",   tileMasterStack("right"))
 
 ----------------------------------------------------------------------
 -- Nudge the focused window (option + hjkl)
@@ -490,15 +492,20 @@ hs.hotkey.bind(hyper, "-", resize(-1), nil, resize(-1))
 -- Move between displays
 ----------------------------------------------------------------------
 
-hs.hotkey.bind(hyper, "[", function()
+local function moveWindowToPrevScreen()
   local win = hs.window.focusedWindow()
   if win then win:moveToScreen(win:screen():previous(), true, true) end
-end)
+end
 
-hs.hotkey.bind(hyper, "]", function()
+local function moveWindowToNextScreen()
   local win = hs.window.focusedWindow()
   if win then win:moveToScreen(win:screen():next(), true, true) end
-end)
+end
+
+hs.hotkey.bind(hyper, "[",        moveWindowToPrevScreen)
+hs.hotkey.bind(hyper, "]",        moveWindowToNextScreen)
+hs.hotkey.bind(hyper, "padclear", moveWindowToPrevScreen)
+hs.hotkey.bind(hyper, "pad-",     moveWindowToNextScreen)
 
 ----------------------------------------------------------------------
 -- Cycle Spaces (hyper+Tab)
