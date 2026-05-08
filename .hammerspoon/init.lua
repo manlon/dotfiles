@@ -281,6 +281,47 @@ local tileGap = 8  -- px between tiled windows (and screen edge)
 local tileTargetAspect     = 1.2
 local tileTargetAspectTall = 0.4   -- tall/narrow cells; e.g. for code panes on ultrawides
 
+-- Per-screen state for reorderable tile order. screenWindowOrder[sid]
+-- is the user-preferred sequence of window IDs; reconcileOrder keeps
+-- it in sync with reality (drop closed, append new). screenLastTileFn
+-- is replayed after a swap so the change is visible immediately.
+-- tileSilent suppresses the "Tiled N" alert during those replays.
+local screenWindowOrder = {}
+local screenLastTileFn  = {}
+local tileSilent        = false
+
+-- Returns wins in the saved order for this screen. Closed-window IDs
+-- drop out; windows not yet in the list append at the end (sorted by
+-- ID for determinism — same behavior as the old pure ID sort, just
+-- applied only to newcomers). Mutates screenWindowOrder.
+local function reconcileOrder(screen, wins)
+  local sid = screen:id()
+  local saved = screenWindowOrder[sid] or {}
+  local byID = {}
+  for _, w in ipairs(wins) do byID[w:id()] = w end
+
+  local ordered, seen = {}, {}
+  for _, id in ipairs(saved) do
+    if byID[id] then
+      table.insert(ordered, byID[id])
+      seen[id] = true
+    end
+  end
+
+  local fresh = {}
+  for _, w in ipairs(wins) do
+    if not seen[w:id()] then table.insert(fresh, w) end
+  end
+  table.sort(fresh, function(a, b) return a:id() < b:id() end)
+  for _, w in ipairs(fresh) do table.insert(ordered, w) end
+
+  local ids = {}
+  for _, w in ipairs(ordered) do table.insert(ids, w:id()) end
+  screenWindowOrder[sid] = ids
+
+  return ordered
+end
+
 local function windowsOnCurrentScreen()
   local focused = hs.window.focusedWindow()
   if not focused then return nil, {} end
@@ -292,12 +333,7 @@ local function windowsOnCurrentScreen()
       table.insert(wins, w)
     end
   end
-  -- Sort by window ID so tiling is idempotent: nudging a window and
-  -- re-tiling snaps it back to the same cell instead of resorting by
-  -- current position and shuffling everything around. IDs are roughly
-  -- creation order, so newer windows land later in the grid.
-  table.sort(wins, function(a, b) return a:id() < b:id() end)
-  return screen, wins, focused
+  return screen, reconcileOrder(screen, wins), focused
 end
 
 -- Distribute n windows across `cols` columns. The first (n mod cols)
@@ -366,7 +402,9 @@ local function tileGrid(targetAspect)
       idx = idx + 1
     end
   end
-  hs.alert.show("Tiled " .. n .. " window" .. (n == 1 and "" or "s"))
+  if not tileSilent then
+    hs.alert.show("Tiled " .. n .. " window" .. (n == 1 and "" or "s"))
+  end
 end
 
 -- Master-stack: focused window gets one half; the rest stack
@@ -415,16 +453,63 @@ local function tileMasterStack(masterSide)
         h = stackH,
       })
     end
-    hs.alert.show("Master + " .. stackN .. " stacked")
+    if not tileSilent then
+      hs.alert.show("Master + " .. stackN .. " stacked")
+    end
   end
 end
 
-hs.hotkey.bind(hyper,      "T",    tileGrid)
-hs.hotkey.bind(hyperShift, "T",    function() tileGrid(tileTargetAspectTall) end)
-hs.hotkey.bind(hyper,      "pad/", tileGrid)
-hs.hotkey.bind(hyper,      "pad*", function() tileGrid(tileTargetAspectTall) end)
-hs.hotkey.bind(hyper,      "\\",   tileMasterStack("left"))
-hs.hotkey.bind(hyperShift, "\\",   tileMasterStack("right"))
+-- Record which tile mode was last invoked on this screen, then run it.
+-- Swap bindings replay this so reorders are visible without a manual
+-- re-tile.
+local function rememberTile(fn)
+  return function()
+    local focused = hs.window.focusedWindow()
+    if focused then screenLastTileFn[focused:screen():id()] = fn end
+    fn()
+  end
+end
+
+-- Move the focused window `delta` slots in the per-screen tile order
+-- and replay the last tile mode silently. Auto-repeats, so holding the
+-- key ripples the window through the layout one cell per tick.
+local function swapInOrder(delta)
+  return function()
+    local focused = hs.window.focusedWindow()
+    if not focused then return end
+    local sid = focused:screen():id()
+    local order = screenWindowOrder[sid]
+    if not order then return end
+    local fid = focused:id()
+    local idx
+    for i, id in ipairs(order) do
+      if id == fid then idx = i; break end
+    end
+    if not idx then return end
+    local target = idx + delta
+    if target < 1 or target > #order then return end
+    order[idx], order[target] = order[target], order[idx]
+    local fn = screenLastTileFn[sid]
+    if fn then
+      tileSilent = true
+      local ok, err = pcall(fn)
+      tileSilent = false
+      if not ok then error(err) end
+    end
+  end
+end
+
+hs.hotkey.bind(hyper,      "T",    rememberTile(tileGrid))
+hs.hotkey.bind(hyperShift, "T",    rememberTile(function() tileGrid(tileTargetAspectTall) end))
+hs.hotkey.bind(hyper,      "pad/", rememberTile(tileGrid))
+hs.hotkey.bind(hyper,      "pad*", rememberTile(function() tileGrid(tileTargetAspectTall) end))
+hs.hotkey.bind(hyper,      "\\",   rememberTile(tileMasterStack("left")))
+hs.hotkey.bind(hyperShift, "\\",   rememberTile(tileMasterStack("right")))
+
+hs.hotkey.bind(hyperShift, "H",        swapInOrder(-1), nil, swapInOrder(-1))
+hs.hotkey.bind(hyperShift, "L",        swapInOrder( 1), nil, swapInOrder( 1))
+hs.hotkey.bind(hyper,      "padenter", swapInOrder(-1), nil, swapInOrder(-1))
+hs.hotkey.bind(hyper,      "pad+",     swapInOrder( 1), nil, swapInOrder( 1))
 
 ----------------------------------------------------------------------
 -- Nudge the focused window (option + hjkl)
