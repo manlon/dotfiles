@@ -653,21 +653,19 @@ hs.hotkey.bind({ "alt" }, "pad2", focusDir("focusWindowSouth"))
 ----------------------------------------------------------------------
 -- App launcher / focuser
 ----------------------------------------------------------------------
--- hyper+<letter> launches the app if it isn't running, otherwise
+-- hyper+<number> launches the app if it isn't running, otherwise
 -- focuses it. Edit this table to taste.
-
--- hyperShift+T is reserved for the tall-grid tile, so Ghostty moved
--- one key over to hyperShift+Y.
 local appBindings = {
-  Y = "Ghostty",
-  E = "Zed",
-  B = "Google Chrome",
-  S = "Slack",
-  N = "Obsidian",
+  ["1"] = "Ghostty",
+  ["2"] = "Zed",
+  ["3"] = "Google Chrome",
+  -- ["4"] = "Slack",
+  ["5"] = "Microsoft Teams",
+  ["6"] = "Microsoft Outlook",
 }
 
 for key, app in pairs(appBindings) do
-  hs.hotkey.bind(hyperShift, key, function()
+  hs.hotkey.bind(hyper, key, function()
     hs.application.launchOrFocus(app)
   end)
 end
