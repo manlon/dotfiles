@@ -25,7 +25,7 @@ jj workspace forget "$ws_name" 2>/dev/null || true
 jj workspace add --name "$ws_name" "$worktree_path"
 
 # Copy gitignored files needed for dev
-for f in .env .env.local .claude/settings.local.json .claude/CLAUDE.local.md; do
+for f in .env .env.local CLAUDE.local.md .claude/settings.local.json .claude/CLAUDE.local.md; do
   [ -f "$repo_root/$f" ] && cp "$repo_root/$f" "$worktree_path/$f"
 done
 
