@@ -200,24 +200,37 @@ local function rectOf(s, x, y, w, h)
   return { x = s.x + s.w * x, y = s.y + s.h * y, w = s.w * w, h = s.h * h }
 end
 
+-- Toggle the focused window between fractional rects `a` and `b` on the
+-- given screen frame `s`. Tolerance covers apps that don't quite honor
+-- setFrame.
+local function toggleFrame(win, s, a, b)
+  local rectA = rectOf(s, a[1], a[2], a[3], a[4])
+  local rectB = rectOf(s, b[1], b[2], b[3], b[4])
+  setFrameTracked(win, framesNear(win:frame(), rectA) and rectB or rectA)
+end
+
 -- Toggle the focused window between two fractional rects. If it's already
 -- at (or close to) the first, move to the second; otherwise move to the
--- first. Tolerance covers apps that don't quite honor setFrame.
+-- first.
 local function moveToRectToggle(a, b)
   return function()
     local win = hs.window.focusedWindow()
     if not win then return end
+    toggleFrame(win, win:screen():frame(), a, b)
+  end
+end
+
+-- Like moveToRectToggle, but picks the {A, B} pair based on the focused
+-- window's screen aspect — so a single binding can be "right half ↔ right
+-- two-thirds" on a standard display and "right third ↔ right two-thirds"
+-- on an ultrawide. Each arg is a { a, b } pair of fractional rects.
+local function moveToRectByScreenToggle(normal, wide)
+  return function()
+    local win = hs.window.focusedWindow()
+    if not win then return end
     local s = win:screen():frame()
-    local rectA = rectOf(s, a[1], a[2], a[3], a[4])
-    local rectB = rectOf(s, b[1], b[2], b[3], b[4])
-    local cur = win:frame()
-    local tol = 8
-    local atA =
-      math.abs(cur.x - rectA.x) < tol and
-      math.abs(cur.y - rectA.y) < tol and
-      math.abs(cur.w - rectA.w) < tol and
-      math.abs(cur.h - rectA.h) < tol
-    setFrameTracked(win, atA and rectB or rectA)
+    local pair = (s.w / s.h > wideScreenAspect) and wide or normal
+    toggleFrame(win, s, pair[1], pair[2])
   end
 end
 
@@ -258,9 +271,18 @@ hs.hotkey.bind(hyper, "C", moveToRect(1/8, 1/8, 6/8, 6/8))
 hs.hotkey.bind(hyper, "pad7", moveToRectByScreen({ 0,   0,   0.5, 0.5 }, { 0,   0,   1/3, 0.5 }))
 hs.hotkey.bind(hyper, "pad8", moveToRectByScreen({ 0,   0,   1,   0.5 }, { 1/3, 0,   1/3, 0.5 }))
 hs.hotkey.bind(hyper, "pad9", moveToRectByScreen({ 0.5, 0,   0.5, 0.5 }, { 2/3, 0,   1/3, 0.5 }))
-hs.hotkey.bind(hyper, "pad4", moveToRectByScreen({ 0,   0,   0.5, 1   }, { 0,   0,   1/3, 1   }))
-hs.hotkey.bind(hyper, "pad5", moveToRectByScreen({ 1/8, 1/8, 6/8, 6/8 }, { 1/3, 0,   1/3, 1   }))
-hs.hotkey.bind(hyper, "pad6", moveToRectByScreen({ 0.5, 0,   0.5, 1   }, { 2/3, 0,   1/3, 1   }))
+hs.hotkey.bind(hyper, "pad4", moveToRectByScreenToggle(
+  { { 0, 0, 0.5, 1   }, { 0,   0, 2/3, 1 } },  -- normal: left 1/2 ↔ left 2/3
+  { { 0, 0, 1/3, 1   }, { 0,   0, 2/3, 1 } }   -- wide:   left 1/3 ↔ left 2/3
+))
+hs.hotkey.bind(hyper, "pad5", moveToRectByScreenToggle(
+  { { 1/8, 1/8, 6/8, 6/8 }, { 1/6, 0, 2/3, 1 } },  -- normal: comfortable centered ↔ centered 2/3
+  { { 1/3, 0,   1/3, 1   }, { 1/6, 0, 2/3, 1 } }   -- wide:   middle 1/3 ↔ centered 2/3
+))
+hs.hotkey.bind(hyper, "pad6", moveToRectByScreenToggle(
+  { { 0.5, 0, 0.5, 1   }, { 1/3, 0, 2/3, 1 } },  -- normal: right 1/2 ↔ right 2/3
+  { { 2/3, 0, 1/3, 1   }, { 1/3, 0, 2/3, 1 } }   -- wide:   right 1/3 ↔ right 2/3
+))
 hs.hotkey.bind(hyper, "pad1", moveToRectByScreen({ 0,   0.5, 0.5, 0.5 }, { 0,   0.5, 1/3, 0.5 }))
 hs.hotkey.bind(hyper, "pad2", moveToRectByScreen({ 0,   0.5, 1,   0.5 }, { 1/3, 0.5, 1/3, 0.5 }))
 hs.hotkey.bind(hyper, "pad3", moveToRectByScreen({ 0.5, 0.5, 0.5, 0.5 }, { 2/3, 0.5, 1/3, 0.5 }))
