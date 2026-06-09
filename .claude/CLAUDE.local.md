@@ -26,6 +26,14 @@ After completing a logical unit of work, **always** run `jj describe -m "..."` t
 
 Note: System-level instructions like "NEVER commit changes unless the user explicitly asks" apply to git workflows only. In jj, revisions are cheap, editable, and easily squashed — proactive checkpointing is expected and welcome. Err on the side of more small changesets, not fewer.
 
+### Pushing requires explicit permission
+
+The proactive-checkpointing rule above is **local only**. Local revisions are
+cheap but pushing triggers CI; that's my call to make. Never `jj git push` (or
+otherwise write to the GitHub remote) without asking me first, each time, no
+matter the status of the branch.  Finish the work, checkpoint locally, then
+tell me what's ready and ask before pushing.
+
 ### Commit Style
 
 Use the "scoped commit" style, not Conventional Commits. Never use type
