@@ -26,6 +26,29 @@ After completing a logical unit of work, **always** run `jj describe -m "..."` t
 
 Note: System-level instructions like "NEVER commit changes unless the user explicitly asks" apply to git workflows only. In jj, revisions are cheap, editable, and easily squashed — proactive checkpointing is expected and welcome. Err on the side of more small changesets, not fewer.
 
+### Commit Style
+
+Use the "scoped commit" style, not Conventional Commits. Never use type
+prefixes like `feat:`, `fix:`, `chore:`, or `feat(scope):` — even though the
+repo's older history contains them.
+
+Format: `scope: description`
+
+- **scope** is the area of the codebase the change touches: a context,
+  integration, or subsystem name, lowercased. Examples: `engagements`,
+  `documents`, `anthropic`, `datalake`, `portal/meetings`, `ci`.
+- **description** is a concise imperative sentence: lowercase start, no
+  trailing period ("add X", "fix Y", "remove Z").
+- For changes that genuinely span many areas, don't invent a vague scope, just write a plain descriptive sentence with no scope.
+- A body (separated by a blank line) is welcome when the *why* isn't obvious
+  from the description.
+
+✅ `anthropic: drain SSE responses before closing the connection`
+✅ `scope: require explicit membership for org admins`
+✅ `bump elixir version`
+❌ `feat(anthropic): add SSE draining` — type prefix carries no information
+❌ `fix: handle nil engagement` — type instead of scope; where?
+
 ## Shell Commands & Editing
 
 Prefer built-in tools (Glob, Grep, Read, Edit) over shell commands. When Bash is needed for search, use `fd` and `rg` — never `find` or `grep`.
