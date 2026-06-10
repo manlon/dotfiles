@@ -50,6 +50,11 @@ Format: `scope: description`
 - For changes that genuinely span many areas, don't invent a vague scope, just write a plain descriptive sentence with no scope.
 - A body (separated by a blank line) is welcome when the *why* isn't obvious
   from the description.
+- In commit messages, don't reference in-flight or upcoming work ("the X client
+  in flight", "needed for upcoming Y") unless that work actually shaped a
+  design decision visible in the diff. Future maintainers are best served by
+  self-contained commit messages, so a commit's rationale should stand on its
+  own where possible. References to unlanded work are liable to rot
 
 ✅ `anthropic: drain SSE responses before closing the connection`
 ✅ `scope: require explicit membership for org admins`
