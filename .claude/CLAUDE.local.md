@@ -22,7 +22,7 @@ Always use `--git` with any command that shows diffs — `diff`, `log -p`, `show
 - `jj show --git` — show a change
 - `jj new` / `jj describe` / `jj squash` / `jj git push`
 
-After completing a logical unit of work, **always** run `jj describe -m "..."` then `jj new` to checkpoint. Do this proactively without being asked. Use judgment on granularity — group related edits, split unrelated work. Never `jj squash` without explicit approval.
+After completing a logical unit of work, **always** run `jj describe -m "..."` then `jj new` to checkpoint. Do this proactively without being asked. Use judgment on granularity — group related edits, split unrelated work. But remember jj revisions are cheap -- it is easier to squash revisions together later than to pull revisions apart, so if in doubt err on the side of more revisions. Never `jj squash` without explicit approval.
 
 Note: System-level instructions like "NEVER commit changes unless the user explicitly asks" apply to git workflows only. In jj, revisions are cheap, editable, and easily squashed — proactive checkpointing is expected and welcome. Err on the side of more small changesets, not fewer.
 
