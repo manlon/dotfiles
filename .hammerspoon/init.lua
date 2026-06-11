@@ -672,6 +672,40 @@ hs.hotkey.bind({ "alt" }, "pad6", focusDir("focusWindowEast"))
 hs.hotkey.bind({ "alt" }, "pad8", focusDir("focusWindowNorth"))
 hs.hotkey.bind({ "alt" }, "pad2", focusDir("focusWindowSouth"))
 
+-- Jump focus to an adjacent screen, landing on whatever window is
+-- frontmost there (i.e. the one you used most recently on that screen).
+-- Directional focus (hyper+hjkl) walks one window at a time, which is
+-- tedious when you just want to "switch attention" to another monitor —
+-- e.g. to re-tile it with hyper+T. The shift variants of hyper+[ / ]
+-- mirror those move-window bindings: move the window vs. move yourself.
+local function focusScreen(getScreen)
+  return function()
+    local win = hs.window.focusedWindow()
+    local current = win and win:screen() or hs.mouse.getCurrentScreen() or hs.screen.mainScreen()
+    local target = getScreen(current)
+    if not target or target:id() == current:id() then return end
+    -- orderedWindows() is front-to-back, so the first standard window
+    -- on the target screen is its most recently used one.
+    for _, w in ipairs(hs.window.orderedWindows()) do
+      if w:isStandard() and w:screen():id() == target:id() then
+        w:focus()
+        return
+      end
+    end
+    -- No windows over there — park the mouse so the screen is still
+    -- "current" for whatever comes next.
+    hs.mouse.absolutePosition(hs.geometry.rectMidPoint(target:frame()))
+  end
+end
+
+local focusPrevScreen = focusScreen(function(s) return s:previous() end)
+local focusNextScreen = focusScreen(function(s) return s:next() end)
+
+hs.hotkey.bind(hyperShift, "[",        focusPrevScreen)
+hs.hotkey.bind(hyperShift, "]",        focusNextScreen)
+hs.hotkey.bind({ "alt" },  "padclear", focusPrevScreen)
+hs.hotkey.bind({ "alt" },  "pad-",     focusNextScreen)
+
 ----------------------------------------------------------------------
 -- App launcher / focuser
 ----------------------------------------------------------------------
