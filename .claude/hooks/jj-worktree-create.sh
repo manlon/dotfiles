@@ -2,13 +2,24 @@
 # WorktreeCreate hook — uses jj workspaces instead of git worktrees
 set -euo pipefail
 
-input=$(cat)
-repo_root=$(echo "$input" | jq -r '.cwd // empty')
-ws_name=$(echo "$input" | jq -r '.name // empty')
+# Two invocation modes:
+#   1. CLI:  jj-worktree-create.sh <name> [repo_root]
+#   2. Hook: JSON on stdin with {cwd, name} (how Claude Code invokes it)
+cli_mode=false
+if [[ $# -ge 1 ]]; then
+  cli_mode=true
+  ws_name=$1
+  # Default to the current workspace root so it works from anywhere in the repo.
+  repo_root=${2:-$(jj workspace root 2>/dev/null || pwd)}
+else
+  input=$(cat)
+  repo_root=$(echo "$input" | jq -r '.cwd // empty')
+  ws_name=$(echo "$input" | jq -r '.name // empty')
+fi
 
 if [[ -z "$ws_name" || -z "$repo_root" ]]; then
-  echo "ERROR: missing name or cwd in hook input" >&2
-  echo "Input was: $input" >&2
+  echo "ERROR: missing workspace name or repo root" >&2
+  echo "Usage: $0 <name> [repo_root]   (or pass {cwd,name} JSON on stdin)" >&2
   exit 1
 fi
 
@@ -30,3 +41,8 @@ for f in .env .env.local CLAUDE.local.md .claude/settings.local.json .claude/CLA
 done
 
 echo "$worktree_path"
+
+if [[ "$cli_mode" == true ]]; then
+  echo "Created workspace '$ws_name'. cd into it with:" >&2
+  echo "  cd $worktree_path" >&2
+fi
