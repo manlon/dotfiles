@@ -1,0 +1,66 @@
+{
+  "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json",
+  "blocks": [
+    {
+      "segments": [
+        {
+          "foreground": "#FFE792",
+          "options": {
+            "style": "austin",
+            "threshold": 2000
+          },
+          "style": "plain",
+          "template": " {{ .FormattedMs }} ",
+          "type": "executiontime"
+        },
+        {
+          "foreground": "#00C5C7",
+          "options": {
+            "time_format": "15:04:05"
+          },
+          "style": "plain",
+          "template": " {{ .CurrentDate | date .Format }} ",
+          "type": "time"
+        }
+      ],
+      "type": "rprompt"
+    },
+    {
+      "alignment": "left",
+      "segments": [
+        {
+          "foreground": "#77E4F7",
+          "options": {
+            "style": "full"
+          },
+          "style": "plain",
+          "template": "{{ .Path }} ",
+          "type": "path"
+        },
+        {
+          "foreground": "#FFB86C",
+          "options": {
+            "fetch_status": true
+          },
+          "style": "plain",
+          "template": " {{ .ChangeID }}{{ if .Working.Changed }}  {{ .Working.String }}{{ end }} ",
+          "type": "jujutsu"
+        },
+        {
+          "foreground": "#FF5C57",
+          "style": "plain",
+          "template": "{{ if .Executed }}✘ {{ .String }} {{ end }}",
+          "type": "status"
+        },
+        {
+          "foreground": "#43D426",
+          "style": "plain",
+          "template": "❯ ",
+          "type": "text"
+        }
+      ],
+      "type": "prompt"
+    }
+  ],
+  "version": 4
+}
