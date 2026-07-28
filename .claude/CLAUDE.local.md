@@ -64,7 +64,7 @@ Format: `scope: description`
 
 ## Shell Commands & Editing
 
-Prefer built-in tools (Glob, Grep, Read, Edit) over shell commands. When Bash is needed for search, use `fd` and `rg` — never `find` or `grep`.
+Prefer built-in tools (Glob, Grep, Read, Edit) over shell commands. When Bash is needed for search, use `fd` and `rg` — never `find` or `grep`. [Note: `rg` is recursive by default — don't pass `-r` for recursive behavior. In `rg`, `-r` means `--replace`]
 
 Never use `sed`, temporary files, or Python/shell scripts to edit code. Always use the Edit tool directly — including for conflict resolution. If an edit can't be done with the Edit tool, stop and explain why.
 
