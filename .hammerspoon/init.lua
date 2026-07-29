@@ -672,6 +672,58 @@ hs.hotkey.bind({ "alt" }, "pad6", focusDir("focusWindowEast"))
 hs.hotkey.bind({ "alt" }, "pad8", focusDir("focusWindowNorth"))
 hs.hotkey.bind({ "alt" }, "pad2", focusDir("focusWindowSouth"))
 
+-- Focus in the z-direction: reach windows stacked underneath the
+-- focused one, which directional focus (hjkl) can't get to when they
+-- fully overlap.
+--
+-- orderedWindows() is front-to-back, so the windows "underneath" are
+-- the standard windows after the focused one whose frames overlap it.
+-- Descend (alt+pad5) focuses the first of those — but first sends the
+-- current window to the back, so repeated presses cycle through the
+-- whole overlapping stack instead of ping-ponging between the top two
+-- (focusing raises, so without this the old window would always be
+-- next). Surface (shift+alt+pad5) focuses the deepest one, cycling
+-- the stack in the opposite direction.
+
+local function framesOverlap(a, b)
+  local r = a:intersect(b)
+  return r.w > 0 and r.h > 0
+end
+
+-- Returns the focused window plus the windows underneath it (front to
+-- back) whose frames overlap it.
+local function overlappingStack()
+  local win = hs.window.focusedWindow()
+  if not win then return nil, {} end
+  local f = win:frame()
+  local stack = {}
+  local belowFocused = false
+  for _, w in ipairs(hs.window.orderedWindows()) do
+    if w:id() == win:id() then
+      belowFocused = true
+    elseif belowFocused and w:isStandard() and framesOverlap(f, w:frame()) then
+      table.insert(stack, w)
+    end
+  end
+  return win, stack
+end
+
+local function focusUnder()
+  local win, stack = overlappingStack()
+  if not win or #stack == 0 then return end
+  win:sendToBack()
+  stack[1]:focus()
+end
+
+local function focusSurface()
+  local win, stack = overlappingStack()
+  if not win or #stack == 0 then return end
+  stack[#stack]:focus()
+end
+
+hs.hotkey.bind({ "alt" },          "pad5", focusUnder)
+hs.hotkey.bind({ "shift", "alt" }, "pad5", focusSurface)
+
 -- Jump focus to an adjacent screen, landing on whatever window is
 -- frontmost there (i.e. the one you used most recently on that screen).
 -- Directional focus (hyper+hjkl) walks one window at a time, which is
