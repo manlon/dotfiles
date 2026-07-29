@@ -678,12 +678,17 @@ hs.hotkey.bind({ "alt" }, "pad2", focusDir("focusWindowSouth"))
 --
 -- orderedWindows() is front-to-back, so the windows "underneath" are
 -- the standard windows after the focused one whose frames overlap it.
--- Descend (alt+pad5) focuses the first of those — but first sends the
--- current window to the back, so repeated presses cycle through the
--- whole overlapping stack instead of ping-ponging between the top two
--- (focusing raises, so without this the old window would always be
--- next). Surface (shift+alt+pad5) focuses the deepest one, cycling
--- the stack in the opposite direction.
+-- Descend (alt+pad5) walks down that stack one window per press;
+-- surface (shift+alt+pad5) focuses the deepest one, cycling the
+-- opposite way.
+--
+-- Focusing raises, so recomputing the stack each press would just
+-- ping-pong between the top two windows. Instead the stack is captured
+-- when a cycle starts and an index advances through it (wrapping back
+-- to the starting window); the saved cycle stays live only while focus
+-- is on the window we last visited. Don't "fix" this with
+-- win:sendToBack() — HS implements that by raising every other window
+-- in turn, which visibly strobes the whole stack.
 
 local function framesOverlap(a, b)
   local r = a:intersect(b)
@@ -708,10 +713,33 @@ local function overlappingStack()
   return win, stack
 end
 
+local zCycle = nil  -- { ids = { winID, ... }, idx = position of last-focused }
+
 local function focusUnder()
+  local cur = hs.window.focusedWindow()
+  if not cur then return end
+
+  -- Mid-cycle (focus is still where we left it): advance, skipping any
+  -- windows that have closed since the cycle was captured.
+  if zCycle and zCycle.ids[zCycle.idx] == cur:id() then
+    for _ = 1, #zCycle.ids do
+      zCycle.idx = (zCycle.idx % #zCycle.ids) + 1
+      local w = hs.window.get(zCycle.ids[zCycle.idx])
+      if w then
+        w:focus()
+        return
+      end
+    end
+    zCycle = nil
+    return
+  end
+
+  -- Otherwise start a new cycle from the current overlap stack.
   local win, stack = overlappingStack()
   if not win or #stack == 0 then return end
-  win:sendToBack()
+  local ids = { win:id() }
+  for _, w in ipairs(stack) do table.insert(ids, w:id()) end
+  zCycle = { ids = ids, idx = 2 }
   stack[1]:focus()
 end
 
