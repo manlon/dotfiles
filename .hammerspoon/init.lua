@@ -156,6 +156,75 @@ hs.hotkey.bind(hyperShift, "U", undoLastMoveAnyWindow, nil, undoLastMoveAnyWindo
 -- Window movement helpers
 ----------------------------------------------------------------------
 
+-- Cascade-aware snapping. Snapping two windows to the same slot (e.g.
+-- hyper+pad7 twice on different windows) would stack them exactly on
+-- top of each other; instead, when a snap target is already occupied,
+-- the whole pile is re-laid as a cascade: the newly snapped window in
+-- front at the slot's origin, prior occupants stepping down-right
+-- behind it, everything shrunk so the pile stays inside the slot. The
+-- staircase of peeking edges signals the stack, and the overlap means
+-- alt+pad5 can cycle through it.
+--
+-- Detection is stateless: cascade members sit at exact, predictable
+-- offsets of the slot rect, so "is this window in slot R?" is just a
+-- frame check — nothing to record, nothing to go stale.
+
+local cascadeStep     = 30  -- px offset between cascaded windows
+local cascadeMaxDepth = 6   -- offsets clamp here so piles can't crawl away
+
+-- If frame f sits at some cascade depth of slot rect R, return that
+-- depth (0 = front, at R's origin); otherwise nil. Size must be within
+-- the shrink allowance — members are R minus up to maxDepth steps.
+local function cascadeDepthOf(f, R)
+  local tol = 8
+  local minW = R.w - cascadeMaxDepth * cascadeStep - tol
+  local minH = R.h - cascadeMaxDepth * cascadeStep - tol
+  if f.w > R.w + tol or f.w < minW then return nil end
+  if f.h > R.h + tol or f.h < minH then return nil end
+  for k = 0, cascadeMaxDepth do
+    if math.abs(f.x - (R.x + k * cascadeStep)) < tol
+      and math.abs(f.y - (R.y + k * cascadeStep)) < tol then
+      return k
+    end
+  end
+  return nil
+end
+
+-- Other standard windows on win's screen currently occupying slot R,
+-- front-to-back.
+local function occupantsOf(win, R)
+  local sid = win:screen():id()
+  local out = {}
+  for _, w in ipairs(hs.window.orderedWindows()) do
+    if w:id() ~= win:id() and w:isStandard() and w:screen():id() == sid
+      and cascadeDepthOf(w:frame(), R) then
+      table.insert(out, w)
+    end
+  end
+  return out
+end
+
+-- Snap win to rect R, cascading with any existing occupants. With no
+-- occupants this is exactly setFrameTracked(win, R).
+local function snapTracked(win, R)
+  local others = occupantsOf(win, R)
+  local n = math.min(#others + 1, cascadeMaxDepth + 1)
+  local size = {
+    w = R.w - (n - 1) * cascadeStep,
+    h = R.h - (n - 1) * cascadeStep,
+  }
+  setFrameTracked(win, { x = R.x, y = R.y, w = size.w, h = size.h })
+  for i, other in ipairs(others) do
+    local k = math.min(i, cascadeMaxDepth)
+    setFrameTracked(other, {
+      x = R.x + k * cascadeStep,
+      y = R.y + k * cascadeStep,
+      w = size.w,
+      h = size.h,
+    })
+  end
+end
+
 -- Move focused window to a fractional rect of its screen.
 -- x, y, w, h are all 0..1 fractions of the usable screen frame.
 local function moveToRect(x, y, w, h)
@@ -163,7 +232,7 @@ local function moveToRect(x, y, w, h)
     local win = hs.window.focusedWindow()
     if not win then return end
     local f = win:screen():frame()
-    setFrameTracked(win, {
+    snapTracked(win, {
       x = f.x + (f.w * x),
       y = f.y + (f.h * y),
       w = f.w * w,
@@ -186,7 +255,7 @@ local function moveToRectByScreen(normal, wide)
     if not win then return end
     local f = win:screen():frame()
     local r = (f.w / f.h > wideScreenAspect) and wide or normal
-    setFrameTracked(win, {
+    snapTracked(win, {
       x = f.x + f.w * r[1],
       y = f.y + f.h * r[2],
       w = f.w * r[3],
@@ -201,12 +270,13 @@ local function rectOf(s, x, y, w, h)
 end
 
 -- Toggle the focused window between fractional rects `a` and `b` on the
--- given screen frame `s`. Tolerance covers apps that don't quite honor
--- setFrame.
+-- given screen frame `s`. "At rect A" is judged by cascadeDepthOf so a
+-- window that's part of a cascade pile at A (shrunk, possibly offset)
+-- still toggles to B rather than re-snapping to A.
 local function toggleFrame(win, s, a, b)
   local rectA = rectOf(s, a[1], a[2], a[3], a[4])
   local rectB = rectOf(s, b[1], b[2], b[3], b[4])
-  setFrameTracked(win, framesNear(win:frame(), rectA) and rectB or rectA)
+  snapTracked(win, cascadeDepthOf(win:frame(), rectA) and rectB or rectA)
 end
 
 -- Toggle the focused window between two fractional rects. If it's already
