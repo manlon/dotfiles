@@ -22,7 +22,7 @@ Always use `--git` with any command that shows diffs — `diff`, `log -p`, `show
 - `jj show --git` — show a change
 - `jj new` / `jj describe` / `jj squash` / `jj git push`
 
-After completing a logical unit of work, **always** run `jj describe -m "..."` then `jj new` to checkpoint. Do this proactively without being asked. Use judgment on granularity — group related edits, split unrelated work. But remember jj revisions are cheap -- it is easier to squash revisions together later than to pull revisions apart, so if in doubt err on the side of more revisions. Never `jj squash` without explicit approval.
+After completing a logical unit of work, **always** run `jj describe -m "..."` then `jj new` to checkpoint. Do this proactively without being asked. Use judgment on granularity — group related edits, split unrelated work. But remember jj revisions are cheap -- it is easier to squash revisions together later than to pull revisions apart, so if in doubt err on the side of more revisions. Never `jj squash` without explicit approval. (If I explicitly ask you to fix conflicted revisions you may use `squash` in the course of doing so).
 
 Note: System-level instructions like "NEVER commit changes unless the user explicitly asks" apply to git workflows only. In jj, revisions are cheap, editable, and easily squashed — proactive checkpointing is expected and welcome. Err on the side of more small changesets, not fewer.
 
@@ -61,6 +61,28 @@ Format: `scope: description`
 ✅ `bump elixir version`
 ❌ `feat(anthropic): add SSE draining` — type prefix carries no information
 ❌ `fix: handle nil engagement` — type instead of scope; where?
+
+### Stacked PRs (gh stack + jj)
+
+We use GitHub's stacked-PRs preview with jj. The division of labor is strict:
+
+- **Remote-only `gh stack` commands are fine**: `gh stack link` (registers
+  already-pushed bookmarks as a stack; adopts existing PRs, creates missing
+  ones with chained bases), `gh stack view`, `gh stack merge`.
+- **Never use gh's local tracking/rebase commands** — `init`, `add`, `sync`,
+  `rebase`, `push`, `modify`. They run git rebases + force-pushes against the
+  colocated git view, rewriting commits behind jj's back. jj's automatic
+  descendant rebasing already does what they exist for.
+- To stack: bookmark each layer's top commit, `jj git push` (permission rules
+  apply), then `gh stack link --base main <bottom> <middle> <top>`.
+- To update a layer: amend in jj (descendants restack automatically), push all
+  the stack's bookmarks. PRs update in place; the stack link persists.
+- After merging the bottom PR: GitHub retargets the rest to main — **decline
+  the server-side cascading rebase** (it mints new commits jj imports as
+  divergent copies). Instead `jj git fetch`, `jj rebase -d main`, push;
+  squash-merged layers go empty and jj auto-abandons them.
+- Exit code 9 from `gh stack` means the preview isn't enabled for the repo.
+
 
 ## Shell Commands & Editing
 
