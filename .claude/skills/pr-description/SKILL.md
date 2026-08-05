@@ -62,9 +62,9 @@ Notes:
 - JE artifacts are now categorized :journal_entry instead of :workpaper
   (leases too) — fixes finalize JEs being carried forward as phantom inputs
   next period. (JEs from already-completed runs won't be updated — consider a
-  one-off data migration if any exist in prod)
+  one-off data migration if any exist in prod.)
 - on_reject may now point at the item itself; both built-ins use this so
-  rejecting at the upload step lets you retry and not redo more expensive
-  previous steps
+  rejecting at the upload step lets you retry without redoing the more
+  expensive previous steps.
 - Run creation is manual (iex) for v1; scheduled triggering is out of scope.
 ```
