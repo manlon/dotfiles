@@ -22,12 +22,16 @@ later find — any given sentence drop toward zero.
 ## Shape
 
 - One or two opening sentences: what the change is and why it exists.
-- Then a few bullets of reviewer notes, reserved for genuine surprises:
+- Then reviewer notes, but **only if there are genuine surprises** to flag:
   - behavioral changes beyond the headline feature (especially ones that
     affect existing functionality)
   - data/migration implications, rollout or revert concerns
   - intentional weirdness the reviewer would otherwise flag as a mistake
   - scope boundaries — what is deliberately *not* done here
+- Many PRs have zero or one such surprise, and the description should reflect
+  that: a single bullet, or no reviewer-notes section at all, is a common and
+  correct outcome. Never pad the section to make it look complete — a bullet
+  that isn't a surprise fails the sentence test above.
 - Title follows the commit-message convention for the repo (for this user:
   `scope: imperative description`, no type prefixes).
 
@@ -45,7 +49,9 @@ later find — any given sentence drop toward zero.
 ## Example
 
 A branch that added a second workflow domain by extracting shared machinery
-(~2,600 lines), compressed to what the reviewer actually needs:
+(~2,600 lines), compressed to what the reviewer actually needs. Note this is
+an unusually surprise-dense change — don't treat three bullets as the target
+shape. A straightforward branch of similar size might warrant none:
 
 ```
 rollforward: add AR reserves as a second workflow domain
