@@ -748,9 +748,9 @@ hs.hotkey.bind({ "alt" }, "pad2", focusDir("focusWindowSouth"))
 --
 -- orderedWindows() is front-to-back, so the windows "underneath" are
 -- the standard windows after the focused one whose frames overlap it.
--- Descend (alt+pad5) walks down that stack one window per press;
--- surface (shift+alt+pad5) focuses the deepest one, cycling the
--- opposite way.
+-- Descend (alt+pad5, or hyper+; without a numpad) walks down that
+-- stack one window per press; surface (shift+alt+pad5 / hyperShift+;)
+-- focuses the deepest one, cycling the opposite way.
 --
 -- Focusing raises, so recomputing the stack each press would just
 -- ping-pong between the top two windows. Instead the stack is captured
@@ -821,6 +821,8 @@ end
 
 hs.hotkey.bind({ "alt" },          "pad5", focusUnder)
 hs.hotkey.bind({ "shift", "alt" }, "pad5", focusSurface)
+hs.hotkey.bind(hyper,      ";", focusUnder)
+hs.hotkey.bind(hyperShift, ";", focusSurface)
 
 -- Jump focus to an adjacent screen, landing on whatever window is
 -- frontmost there (i.e. the one you used most recently on that screen).
