@@ -432,10 +432,7 @@ local function reconcileOrder(screen, wins)
   return ordered
 end
 
-local function windowsOnCurrentScreen()
-  local focused = hs.window.focusedWindow()
-  if not focused then return nil, {} end
-  local screen = focused:screen()
+local function windowsOnScreen(screen)
   local screenID = screen:id()
   local wins = {}
   for _, w in ipairs(hs.window.visibleWindows()) do
@@ -443,7 +440,14 @@ local function windowsOnCurrentScreen()
       table.insert(wins, w)
     end
   end
-  return screen, reconcileOrder(screen, wins), focused
+  return reconcileOrder(screen, wins)
+end
+
+local function windowsOnCurrentScreen()
+  local focused = hs.window.focusedWindow()
+  if not focused then return nil, {} end
+  local screen = focused:screen()
+  return screen, windowsOnScreen(screen), focused
 end
 
 -- Distribute n windows across `cols` columns. The first (n mod cols)
@@ -484,14 +488,13 @@ local function chooseGridCols(n, screenAspect, targetAspect)
   return bestCols
 end
 
--- Grid tile: pick the column count that gives the best average cell
--- aspect, then size each column's cells independently so every window
--- gets a slot and no space is wasted. Optional targetAspect overrides
--- the default (e.g. tileTargetAspectTall for narrow code-pane layouts).
-local function tileGrid(targetAspect)
+-- Grid-tile `wins` onto `screen`: pick the column count that gives the
+-- best average cell aspect, then size each column's cells independently
+-- so every window gets a slot and no space is wasted. The windows need
+-- not already be on `screen` — setting the frame moves them there.
+local function tileWins(screen, wins, targetAspect)
   targetAspect = targetAspect or tileTargetAspect
-  local screen, wins = windowsOnCurrentScreen()
-  if not screen or #wins == 0 then return end
+  if #wins == 0 then return end
   local f = screen:frame()
   local n = #wins
   local cols = chooseGridCols(n, f.w / f.h, targetAspect)
@@ -512,8 +515,21 @@ local function tileGrid(targetAspect)
       idx = idx + 1
     end
   end
+end
+
+-- Grid tile the screen's current windows. Optional targetAspect
+-- overrides the default (e.g. tileTargetAspectTall for narrow
+-- code-pane layouts).
+local function tileGridOn(screen, targetAspect)
+  tileWins(screen, windowsOnScreen(screen), targetAspect)
+end
+
+local function tileGrid(targetAspect)
+  local screen, wins = windowsOnCurrentScreen()
+  if not screen or #wins == 0 then return end
+  tileWins(screen, wins, targetAspect)
   if not tileSilent then
-    hs.alert.show("Tiled " .. n .. " window" .. (n == 1 and "" or "s"))
+    hs.alert.show("Tiled " .. #wins .. " window" .. (#wins == 1 and "" or "s"))
   end
 end
 
@@ -620,6 +636,65 @@ hs.hotkey.bind(hyperShift, "H",        swapInOrder(-1), nil, swapInOrder(-1))
 hs.hotkey.bind(hyperShift, "L",        swapInOrder( 1), nil, swapInOrder( 1))
 hs.hotkey.bind(hyper,      "padenter", swapInOrder(-1), nil, swapInOrder(-1))
 hs.hotkey.bind(hyper,      "pad+",     swapInOrder( 1), nil, swapInOrder( 1))
+
+----------------------------------------------------------------------
+-- Work layout (hyper+W): comms apps on the laptop, the rest elsewhere
+----------------------------------------------------------------------
+-- One-shot two-monitor setup: Teams and Outlook windows go to the
+-- laptop's built-in display, every other window to the other screen,
+-- then both screens are grid-tiled. Windows land in their tile slots
+-- directly (one tracked frame-set each), so hyper+U walks a window all
+-- the way back to where it was, original screen included.
+
+-- Substring matches against the owning app's name, so "Microsoft Teams
+-- (work or school)" and friends still count.
+local commsApps = { "Teams", "Outlook" }
+
+local function isCommsWindow(w)
+  local app = w:application()
+  local name = app and app:name() or ""
+  for _, pat in ipairs(commsApps) do
+    if name:find(pat, 1, true) then return true end
+  end
+  return false
+end
+
+local function workLayout()
+  local screens = hs.screen.allScreens()
+  if #screens < 2 then
+    hs.alert.show("Work layout needs a second screen")
+    return
+  end
+
+  -- Comms live on the built-in display; fall back to the rightmost
+  -- screen (where the laptop usually sits). Everything else goes to
+  -- the leftmost remaining screen.
+  local commsScreen
+  for _, s in ipairs(screens) do
+    if (s:name() or ""):find("Built-in", 1, true) then commsScreen = s end
+  end
+  table.sort(screens, function(a, b) return a:frame().x < b:frame().x end)
+  commsScreen = commsScreen or screens[#screens]
+  local mainScreen
+  for _, s in ipairs(screens) do
+    if s:id() ~= commsScreen:id() then mainScreen = s; break end
+  end
+
+  local comms, rest = {}, {}
+  for _, w in ipairs(hs.window.visibleWindows()) do
+    if w:isStandard() then
+      table.insert(isCommsWindow(w) and comms or rest, w)
+    end
+  end
+
+  for screen, wins in pairs({ [commsScreen] = comms, [mainScreen] = rest }) do
+    tileWins(screen, reconcileOrder(screen, wins))
+    screenLastTileFn[screen:id()] = function() tileGridOn(screen) end
+  end
+  hs.alert.show("Work layout: " .. #comms .. " comms + " .. #rest .. " windows")
+end
+
+hs.hotkey.bind(hyper, "W", workLayout)
 
 ----------------------------------------------------------------------
 -- Nudge the focused window (option + hjkl)
