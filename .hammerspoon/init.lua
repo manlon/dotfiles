@@ -329,6 +329,24 @@ hs.hotkey.bind(hyperShift, "G", moveToRect(1/3, 0, 2/3, 1))  -- right two-thirds
 -- Press again while maximized to drop to the centered "comfortable" size.
 hs.hotkey.bind(hyper, "M", moveToRectToggle({ 0, 0, 1, 1 }, { 1/8, 1/8, 6/8, 6/8 }))
 
+-- Maximize every standard window on the focused window's screen.
+-- Deliberately no cascade: the windows end up exactly stacked, and
+-- alt+pad5 / hyper+; cycles through the pile. Each move is tracked, so
+-- hyper+U un-maximizes windows one at a time.
+local function maximizeAllOnScreen()
+  local win = hs.window.focusedWindow()
+  if not win then return end
+  local screen = win:screen()
+  local f = screen:frame()
+  for _, w in ipairs(hs.window.orderedWindows()) do
+    if w:isStandard() and w:screen():id() == screen:id() then
+      setFrameTracked(w, f)
+    end
+  end
+end
+
+hs.hotkey.bind(hyperShift, "M", maximizeAllOnScreen)
+
 -- Center at a comfortable size (good for floating utility windows)
 hs.hotkey.bind(hyper, "C", moveToRect(1/8, 1/8, 6/8, 6/8))
 
