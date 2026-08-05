@@ -28,10 +28,8 @@ later find — any given sentence drop toward zero.
   - data/migration implications, rollout or revert concerns
   - intentional weirdness the reviewer would otherwise flag as a mistake
   - scope boundaries — what is deliberately *not* done here
-- Many PRs have zero or one such surprise, and the description should reflect
-  that: a single bullet, or no reviewer-notes section at all, is a common and
-  correct outcome. Never pad the section to make it look complete — a bullet
-  that isn't a surprise fails the sentence test above.
+  It's fine (common even) to have no such notes or just one bullet point. Don't
+  pad this section just to look complete.
 - Title follows the commit-message convention for the repo (for this user:
   `scope: imperative description`, no type prefixes).
 
@@ -48,24 +46,25 @@ later find — any given sentence drop toward zero.
 
 ## Example
 
-A branch that added a second workflow domain by extracting shared machinery
-(~2,600 lines), compressed to what the reviewer actually needs. Note this is
-an unusually surprise-dense change — don't treat three bullets as the target
-shape. A straightforward branch of similar size might warrant none:
+Here is an example PR description taken from a branch that added a second
+workflow domain by extracting shared machinery (~2,600 lines). Note it would not
+be surprising to have fewer or more notes if warranted; the target is genuine
+call-outs, not a particular length or shape of the PR description.
 
 ```
 rollforward: add AR reserves as a second workflow domain
 
-Adds the AR reserves roll-forward alongside leases. The two share a
-five-step shape, so the leases transform action and portal domain module
-become shared config-driven implementations and AR plugs in as configuration.
+Adds the AR reserves workflow roll-forward alongside leases. The two share a
+five-step shape, so the leases transform action and portal domain module become
+shared config-driven implementations and AR plugs in as configuration.
 
-Reviewer notes:
+Notes:
 - JE artifacts are now categorized :journal_entry instead of :workpaper
   (leases too) — fixes finalize JEs being carried forward as phantom inputs
-  next period. JEs from already-completed runs keep the old category; may
-  need a one-off data fix if any exist in prod.
+  next period. (JEs from already-completed runs won't be updated — consider a
+  one-off data migration if any exist in prod)
 - on_reject may now point at the item itself; both built-ins use this so
-  rejecting at the upload step preserves the expensive NetSuite extract.
+  rejecting at the upload step lets you retry and not redo more expensive
+  previous steps
 - Run creation is manual (iex) for v1; scheduled triggering is out of scope.
 ```
