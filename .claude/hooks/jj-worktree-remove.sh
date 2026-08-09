@@ -25,6 +25,12 @@ if [[ -z "$workspace_name" || -z "$repo_root" ]]; then
   exit 1
 fi
 
+# Outside a jj repo there is nothing to intercept: exit silently so Claude Code
+# falls through to removing an ordinary git worktree.
+if ! (cd "$repo_root" 2>/dev/null && jj root >/dev/null 2>&1); then
+  exit 0
+fi
+
 cd "$repo_root"
 
 # If a .keep marker exists, preserve the worktree

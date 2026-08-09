@@ -23,6 +23,13 @@ if [[ -z "$ws_name" || -z "$repo_root" ]]; then
   exit 1
 fi
 
+# Outside a jj repo there is nothing to intercept: exit silently so Claude Code
+# falls through to creating an ordinary git worktree. `jj root` rather than a
+# test for .jj/ because repo_root is the hook's cwd, possibly a subdirectory.
+if ! (cd "$repo_root" 2>/dev/null && jj root >/dev/null 2>&1); then
+  exit 0
+fi
+
 # Construct worktree path inside the repo's .claude/worktrees/ directory
 worktree_path="${repo_root}/.claude/worktrees/${ws_name}"
 
@@ -36,7 +43,7 @@ jj workspace forget "$ws_name" 2>/dev/null || true
 jj workspace add --name "$ws_name" "$worktree_path"
 
 # Copy gitignored files needed for dev
-for f in .env .env.local CLAUDE.local.md .claude/settings.local.json .claude/CLAUDE.local.md; do
+for f in .env .env.local .claude/settings.local.json; do
   [ -f "$repo_root/$f" ] && cp "$repo_root/$f" "$worktree_path/$f"
 done
 

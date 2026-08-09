@@ -4,6 +4,15 @@
 
 Most of my repos are jj (Jujutsu) colocated with git. **Check for a `.jj/` directory at the repo root**: if it's there, use `jj` for all VCS operations — never `git commit`, `git checkout`, `git worktree`, etc. The git CLI sees a different (and possibly stale) view of the repo state than jj does. A few repos are plain git (`infra`, `ms-rmckeeman-ops`); there, use git normally.
 
+### Worktrees are jj workspaces
+
+In a jj repo, the harness `EnterWorktree`/`ExitWorktree` tools and the `.claude/worktrees/` directory do **not** create git worktrees. `WorktreeCreate`/`WorktreeRemove` hooks (`~/.claude/hooks/jj-worktree-{create,remove}.sh`, registered globally in `~/.claude/settings.json`) intercept these and run `jj workspace add` / `jj workspace forget` instead. Outside a jj repo the hooks exit silently and you get an ordinary git worktree. Implications:
+
+- Inside a `.claude/worktrees/<name>/` directory, you are in a **jj workspace**, not a git worktree. Use `jj st`, `jj diff --git`, `jj log`, etc. — `git status` / `git worktree list` will be misleading or wrong.
+- To list active workspaces: `jj workspace list` (run from anywhere in the repo).
+- Each workspace has its own `@` (working-copy commit) but shares the underlying repo and op-log. Edits in one workspace don't appear at another's `@` until you `jj new` / `jj edit` onto the same commit there.
+- The harness still calls these "worktrees" in its UI and tool names — that's the abstraction it exposes. Mentally translate to "workspace" when reasoning about VCS behavior.
+
 ### Commands
 
 Always use `--git` with any command that shows diffs — `diff`, `log -p`, `show` — because Claude Code can't see ANSI colors:
