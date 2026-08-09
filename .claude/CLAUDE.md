@@ -2,7 +2,8 @@
 
 ## Version Control
 
-Most of my repos are jj (Jujutsu) colocated with git. **Check for a `.jj/` directory at the repo root**: if it's there, use `jj` for all VCS operations — never `git commit`, `git checkout`, `git worktree`, etc. The git CLI sees a different (and possibly stale) view of the repo state than jj does. A few repos are plain git (`infra`, `ms-rmckeeman-ops`); there, use git normally.
+Most of my repos are jj (Jujutsu) colocated with git. **Check for a `.jj/` directory at the repo root**: if it's there, use `jj` for all VCS operations — never `git commit`, `git checkout`, `git worktree`, etc. The git CLI sees a different (and possibly stale) view of the repo state than jj does. If you encounter a repo using plain git, warn me about it: I may want to continue using plain git for that repo or I may ask you to `jj git init` so we can proceed using `jj`.
+
 
 ### Worktrees are jj workspaces
 
