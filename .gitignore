@@ -1,4 +1,3 @@
-# Root CLAUDE.local.md is a local symlink to .claude/CLAUDE.local.md so
-# Claude Code auto-loads it. The real file (in .claude/) stays tracked;
-# the leading slash anchors this to the repo root only.
-/CLAUDE.local.md
+# .claude/CLAUDE.md is the tracked global instructions file; ~/.claude/CLAUDE.md
+# is a local symlink to it, so Claude Code auto-loads it in every repo. Nothing
+# needs ignoring at the root anymore — kept as a placeholder for local-only files.
