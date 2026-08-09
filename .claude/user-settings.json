@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "defaultMode": "auto"
+  },
+  "model": "opus[1m]",
+  "tui": "fullscreen",
+  "theme": "dark",
+  "skipAutoPermissionPrompt": true,
+  "hooks": {
+    "WorktreeCreate": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/hooks/jj-worktree-create.sh"
+          }
+        ]
+      }
+    ],
+    "WorktreeRemove": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/hooks/jj-worktree-remove.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
