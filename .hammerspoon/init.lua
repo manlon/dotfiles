@@ -190,10 +190,12 @@ local function cascadeDepthOf(f, R)
   return nil
 end
 
--- Other standard windows on win's screen currently occupying slot R,
--- front-to-back.
-local function occupantsOf(win, R)
-  local sid = win:screen():id()
+-- Other standard windows currently occupying slot R, front-to-back.
+-- `screen` defaults to win's own; pass it explicitly when snapping a
+-- window that hasn't been moved to the target display yet, or we'd look
+-- for the pile on the display the window is leaving.
+local function occupantsOf(win, R, screen)
+  local sid = (screen or win:screen()):id()
   local out = {}
   for _, w in ipairs(hs.window.orderedWindows()) do
     if w:id() ~= win:id() and w:isStandard() and w:screen():id() == sid
@@ -206,8 +208,8 @@ end
 
 -- Snap win to rect R, cascading with any existing occupants. With no
 -- occupants this is exactly setFrameTracked(win, R).
-local function snapTracked(win, R)
-  local others = occupantsOf(win, R)
+local function snapTracked(win, R, screen)
+  local others = occupantsOf(win, R, screen)
   local n = math.min(#others + 1, cascadeMaxDepth + 1)
   local size = {
     w = R.w - (n - 1) * cascadeStep,
@@ -615,9 +617,10 @@ local terminalZoneFraction = 1/3
 -- it resolves to the same rect hyper+D uses. Cascade membership is
 -- detected by frame comparison, so a later hyper+D on a terminal joins
 -- this pile rather than starting a rival one beside it.
-local function tileTerminalZone()
-  local screen, wins = windowsOnCurrentScreen()
-  if not screen or #wins == 0 then return end
+-- `wins` need not already be on `screen` — like tileWinsInRect, setting
+-- the frame moves them there. Returns the terminal and non-terminal
+-- counts so callers can word their own alert.
+local function tileTerminalZoneOn(screen, wins)
   local f = screen:frame()
 
   local terms, rest = {}, {}
@@ -627,10 +630,7 @@ local function tileTerminalZone()
 
   if #terms == 0 then
     tileWinsInRect(f, rest)
-    if not tileSilent then
-      hs.alert.show("No terminals — tiled " .. #rest)
-    end
-    return
+    return 0, #rest
   end
 
   local zoneW = f.w * terminalZoneFraction
@@ -643,12 +643,22 @@ local function tileTerminalZone()
   -- the first terminal frontmost.
   local zone = { x = f.x, y = f.y, w = zoneW, h = f.h }
   for i = #terms, 1, -1 do
-    snapTracked(terms[i], zone)
+    snapTracked(terms[i], zone, screen)
   end
 
-  if not tileSilent then
-    hs.alert.show(#terms .. " terminal" .. (#terms == 1 and "" or "s")
-      .. " + " .. #rest .. " tiled")
+  return #terms, #rest
+end
+
+local function tileTerminalZone()
+  local screen, wins = windowsOnCurrentScreen()
+  if not screen or #wins == 0 then return end
+  local nTerms, nRest = tileTerminalZoneOn(screen, wins)
+  if tileSilent then return end
+  if nTerms == 0 then
+    hs.alert.show("No terminals — tiled " .. nRest)
+  else
+    hs.alert.show(nTerms .. " terminal" .. (nTerms == 1 and "" or "s")
+      .. " + " .. nRest .. " tiled")
   end
 end
 
@@ -710,10 +720,11 @@ hs.hotkey.bind(hyper,      "pad+",     swapInOrder( 1), nil, swapInOrder( 1))
 -- Work layout (hyper+W): comms apps on the laptop, the rest elsewhere
 ----------------------------------------------------------------------
 -- One-shot two-monitor setup: Teams and Outlook windows go to the
--- laptop's built-in display, every other window to the other screen,
--- then both screens are grid-tiled. Windows land in their tile slots
--- directly (one tracked frame-set each), so hyper+U walks a window all
--- the way back to where it was, original screen included.
+-- laptop's built-in display and are grid-tiled there; every other window
+-- goes to the other screen and gets the hyper+' terminal-zone layout, so
+-- terminals pile in its left third. Windows land in their slots directly
+-- (one tracked frame-set each), so hyper+U walks a window all the way
+-- back to where it was, original screen included.
 
 local commsApps = { "Teams", "Outlook" }
 
@@ -745,10 +756,14 @@ local function workLayout()
     end
   end
 
-  for screen, wins in pairs({ [commsScreen] = comms, [mainScreen] = rest }) do
-    tileWins(screen, reconcileOrder(screen, wins))
-    screenLastTileFn[screen:id()] = function() tileGridOn(screen) end
+  tileWins(commsScreen, reconcileOrder(commsScreen, comms))
+  screenLastTileFn[commsScreen:id()] = function() tileGridOn(commsScreen) end
+
+  tileTerminalZoneOn(mainScreen, reconcileOrder(mainScreen, rest))
+  screenLastTileFn[mainScreen:id()] = function()
+    tileTerminalZoneOn(mainScreen, windowsOnScreen(mainScreen))
   end
+
   hs.alert.show("Work layout: " .. #comms .. " comms + " .. #rest .. " windows")
 end
 
