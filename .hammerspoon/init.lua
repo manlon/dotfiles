@@ -488,14 +488,15 @@ local function chooseGridCols(n, screenAspect, targetAspect)
   return bestCols
 end
 
--- Grid-tile `wins` onto `screen`: pick the column count that gives the
--- best average cell aspect, then size each column's cells independently
--- so every window gets a slot and no space is wasted. The windows need
--- not already be on `screen` — setting the frame moves them there.
-local function tileWins(screen, wins, targetAspect)
+-- Grid-tile `wins` into the rect `f`: pick the column count that gives
+-- the best average cell aspect, then size each column's cells
+-- independently so every window gets a slot and no space is wasted.
+-- Cells are inset from `f` by tileGap on every side, so `f` should be
+-- the region including its outer padding. The windows need not already
+-- be on the rect's screen — setting the frame moves them there.
+local function tileWinsInRect(f, wins, targetAspect)
   targetAspect = targetAspect or tileTargetAspect
   if #wins == 0 then return end
-  local f = screen:frame()
   local n = #wins
   local cols = chooseGridCols(n, f.w / f.h, targetAspect)
   local rowsPerCol = distributeColumns(n, cols)
@@ -517,6 +518,10 @@ local function tileWins(screen, wins, targetAspect)
   end
 end
 
+local function tileWins(screen, wins, targetAspect)
+  tileWinsInRect(screen:frame(), wins, targetAspect)
+end
+
 -- Grid tile the screen's current windows. Optional targetAspect
 -- overrides the default (e.g. tileTargetAspectTall for narrow
 -- code-pane layouts).
@@ -533,8 +538,13 @@ local function tileGrid(targetAspect)
   end
 end
 
--- Master-stack: focused window gets one half; the rest stack
--- vertically on the other half. masterSide is "left" or "right".
+-- Master-stack: focused window gets one half; the rest are grid-tiled
+-- into the other half by the same algorithm hyper+T uses on a whole
+-- screen. Handing it a half-width rect halves the aspect it scores
+-- against, so it naturally prefers taller, narrower cells there: a
+-- single companion window fills the half, more of them stack, and once
+-- the cells get too squat it splits the half into columns of its own.
+-- masterSide is "left" or "right".
 local function tileMasterStack(masterSide)
   return function()
     local screen, wins, focused = windowsOnCurrentScreen()
@@ -555,32 +565,28 @@ local function tileMasterStack(masterSide)
       return
     end
 
-    local halfW   = f.w / 2
-    local cellW   = halfW - 1.5 * tileGap
-    local leftX   = f.x + tileGap
-    local rightX  = f.x + halfW + 0.5 * tileGap
-    local masterX = (masterSide == "right") and rightX or leftX
-    local stackX  = (masterSide == "right") and leftX  or rightX
+    -- Each half is widened by half a gap past the midline so that after
+    -- tileWinsInRect's inset the two halves are separated by exactly
+    -- one tileGap, matching the outer margins.
+    local halfW  = f.w / 2 + 0.5 * tileGap
+    local leftR  = { x = f.x,                     y = f.y, w = halfW, h = f.h }
+    local rightR = { x = f.x + f.w - halfW,       y = f.y, w = halfW, h = f.h }
+    local masterR = (masterSide == "right") and rightR or leftR
+    local stackR  = (masterSide == "right") and leftR  or rightR
 
     setFrameTracked(ordered[1], {
-      x = masterX,
+      x = masterR.x + tileGap,
       y = f.y + tileGap,
-      w = cellW,
+      w = masterR.w - 2 * tileGap,
       h = f.h - 2 * tileGap,
     })
 
-    local stackN = #ordered - 1
-    local stackH = (f.h - tileGap * (stackN + 1)) / stackN
-    for i = 2, #ordered do
-      setFrameTracked(ordered[i], {
-        x = stackX,
-        y = f.y + tileGap + (i - 2) * (stackH + tileGap),
-        w = cellW,
-        h = stackH,
-      })
-    end
+    local rest = {}
+    for i = 2, #ordered do table.insert(rest, ordered[i]) end
+    tileWinsInRect(stackR, rest)
+
     if not tileSilent then
-      hs.alert.show("Master + " .. stackN .. " stacked")
+      hs.alert.show("Master + " .. #rest .. " tiled")
     end
   end
 end
