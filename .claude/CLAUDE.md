@@ -85,6 +85,23 @@ We use GitHub's stacked-PRs preview with jj. The division of labor is strict:
 - Exit code 9 from `gh stack` means the preview isn't enabled for the repo.
 
 
+## Code comments
+
+Comments should record a non-obvious, site-specific *why*: a hidden constraint, a subtle invariant, a workaround for a specific bug. Don't restate what the co
+de does, don't re-explain general project conventions at the call site (those belong here in CLAUDE.md, not sprinkled at every use), and never cite CLAUDE.md
+from code — the reference will drift out of sync silently. If the rationale isn't unique to *this* line, leave it out.
+
+Avoid comments that describe transient state outside the source file — rollout phases ("phase 2"), wiring status ("not wired yet"), or which other modules cur
+rently do what. Similarly, do not cite design documents by path in code files. Nothing in the file at hand changes when that external state shifts, so the com
+ment rots silently; project-status snapshots belong in the PR description, not the code. As an exception, brief TODO comments noting a forthcoming change are
+fine, especially if they include a trigger condition for resolving the TODO (e.g., "# TODO: replace with a real implementation once permission for the service
+ is granted").
+
+Similarly, don't document a previous or rejected implementation ("we used to do X", "don't switch to Y because Z") unless a future maintainer would plausibly
+reach for that approach unprompted *and* the cost of reverting is high. Comments that preserve the edit history of one session are just noise; version control
+ already preserves the edit history we need.
+
+
 ## Shell Commands & Editing
 
 Prefer built-in tools (Glob, Grep, Read, Edit) over shell commands. When Bash is needed for search, use `fd` and `rg` — never `find` or `grep`. [Note: `rg` is recursive by default — don't pass `-r` for recursive behavior. In `rg`, `-r` means `--replace`]
