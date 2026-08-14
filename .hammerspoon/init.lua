@@ -591,6 +591,67 @@ local function tileMasterStack(masterSide)
   end
 end
 
+-- Substring match a window's owning app name against a list of names,
+-- so "Microsoft Teams (work or school)" still matches "Teams".
+local function appNameMatches(w, names)
+  local app = w:application()
+  local name = app and app:name() or ""
+  for _, pat in ipairs(names) do
+    if name:find(pat, 1, true) then return true end
+  end
+  return false
+end
+
+local terminalApps         = { "Ghostty" }
+local terminalZoneFraction = 1/3
+
+-- Terminal zone: every terminal window goes to the left third exactly
+-- as hyper+D would send it — repeated snaps to an occupied slot cascade
+-- into a staircase, which alt+pad5 / hyper+; can then cycle. Everything
+-- else is grid-tiled into the remaining screen. With no terminals open
+-- this degrades to a plain full-screen grid tile.
+--
+-- The zone rect is the bare 1/3 fraction rather than a gap-inset one so
+-- it resolves to the same rect hyper+D uses. Cascade membership is
+-- detected by frame comparison, so a later hyper+D on a terminal joins
+-- this pile rather than starting a rival one beside it.
+local function tileTerminalZone()
+  local screen, wins = windowsOnCurrentScreen()
+  if not screen or #wins == 0 then return end
+  local f = screen:frame()
+
+  local terms, rest = {}, {}
+  for _, w in ipairs(wins) do
+    table.insert(appNameMatches(w, terminalApps) and terms or rest, w)
+  end
+
+  if #terms == 0 then
+    tileWinsInRect(f, rest)
+    if not tileSilent then
+      hs.alert.show("No terminals — tiled " .. #rest)
+    end
+    return
+  end
+
+  local zoneW = f.w * terminalZoneFraction
+  -- Tile the remainder first so no non-terminal window is still sitting
+  -- in the zone to be swept into the cascade below.
+  tileWinsInRect({ x = f.x + zoneW, y = f.y, w = f.w - zoneW, h = f.h }, rest)
+
+  -- Snapping puts the window at the slot origin and pushes prior
+  -- occupants back a step, so walking the tile order backwards leaves
+  -- the first terminal frontmost.
+  local zone = { x = f.x, y = f.y, w = zoneW, h = f.h }
+  for i = #terms, 1, -1 do
+    snapTracked(terms[i], zone)
+  end
+
+  if not tileSilent then
+    hs.alert.show(#terms .. " terminal" .. (#terms == 1 and "" or "s")
+      .. " + " .. #rest .. " tiled")
+  end
+end
+
 -- Record which tile mode was last invoked on this screen, then run it.
 -- Swap bindings replay this so reorders are visible without a manual
 -- re-tile.
@@ -637,6 +698,8 @@ hs.hotkey.bind(hyper,      "pad/", rememberTile(tileGrid))
 hs.hotkey.bind(hyper,      "pad*", rememberTile(function() tileGrid(tileTargetAspectTall) end))
 hs.hotkey.bind(hyper,      "\\",   rememberTile(tileMasterStack("left")))
 hs.hotkey.bind(hyperShift, "\\",   rememberTile(tileMasterStack("right")))
+hs.hotkey.bind(hyper,      "'",    rememberTile(tileTerminalZone))
+hs.hotkey.bind(hyper,      "pad.", rememberTile(tileTerminalZone))
 
 hs.hotkey.bind(hyperShift, "H",        swapInOrder(-1), nil, swapInOrder(-1))
 hs.hotkey.bind(hyperShift, "L",        swapInOrder( 1), nil, swapInOrder( 1))
@@ -652,18 +715,7 @@ hs.hotkey.bind(hyper,      "pad+",     swapInOrder( 1), nil, swapInOrder( 1))
 -- directly (one tracked frame-set each), so hyper+U walks a window all
 -- the way back to where it was, original screen included.
 
--- Substring matches against the owning app's name, so "Microsoft Teams
--- (work or school)" and friends still count.
 local commsApps = { "Teams", "Outlook" }
-
-local function isCommsWindow(w)
-  local app = w:application()
-  local name = app and app:name() or ""
-  for _, pat in ipairs(commsApps) do
-    if name:find(pat, 1, true) then return true end
-  end
-  return false
-end
 
 local function workLayout()
   local screens = hs.screen.allScreens()
@@ -689,7 +741,7 @@ local function workLayout()
   local comms, rest = {}, {}
   for _, w in ipairs(hs.window.visibleWindows()) do
     if w:isStandard() then
-      table.insert(isCommsWindow(w) and comms or rest, w)
+      table.insert(appNameMatches(w, commsApps) and comms or rest, w)
     end
   end
 
