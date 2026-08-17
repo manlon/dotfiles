@@ -1,0 +1,64 @@
+#!/bin/sh
+# stamp — move a file to ~/Downloads under a timestamp-prefixed name.
+#
+# Usage:
+#   stamp report.xlsx        -> ~/Downloads/2608141047-report.xlsx
+#   stamp a.csv b.csv        -> one timestamped copy of each
+#   stamp -c report.xlsx     -> copy instead of move, leaving the original
+#
+# Repeated runs on a regenerated file leave a series of dated versions side by
+# side. Two runs within the same minute would collide, so a -2, -3, ... counter
+# is inserted before the extension rather than clobbering the earlier version.
+
+set -eu
+
+dir="${STAMP_DIR:-$HOME/Downloads}"
+copy=
+
+usage() {
+  echo "usage: stamp [-c|--copy] FILE..." >&2
+  exit 2
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -c|--copy) copy=1; shift ;;
+    --)        shift; break ;;
+    -*)        echo "stamp: unknown option: $1" >&2; usage ;;
+    *)         break ;;
+  esac
+done
+
+if [ "$#" -eq 0 ]; then
+  usage
+fi
+
+stamp="$(date +%y%m%d%H%M)"
+mkdir -p "$dir"
+
+for src in "$@"; do
+  if [ ! -e "$src" ]; then
+    echo "stamp: $src: no such file" >&2
+    exit 1
+  fi
+
+  base="$(basename "$src")"
+  case "$base" in
+    ?*.*) stem="${base%.*}"; ext=".${base##*.}" ;;
+    *)    stem="$base";      ext= ;;
+  esac
+
+  dest="$dir/$stamp-$base"
+  n=2
+  while [ -e "$dest" ]; do
+    dest="$dir/$stamp-$stem-$n$ext"
+    n=$((n + 1))
+  done
+
+  if [ -n "$copy" ]; then
+    cp -R -- "$src" "$dest"
+  else
+    mv -- "$src" "$dest"
+  fi
+  echo "$dest"
+done

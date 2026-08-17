@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Snapshot all jj workspaces so the current repo sees up-to-date changes.
+#
+# snapshot.auto-update-stale=true makes jj update stale working copies in the
+# same pass instead of erroring with "The working copy is stale". If a stale
+# workspace has un-snapshotted changes on disk, jj preserves them in a
+# recovery commit rather than discarding them.
+set -euo pipefail
+
+failed=0
+while read -r ws; do
+  dir="$(jj workspace root --name "$ws")"
+  if [ ! -d "$dir" ]; then
+    echo "warning: workspace '$ws' root missing at $dir; skipping" >&2
+    continue
+  fi
+  if ! jj -R "$dir" --config snapshot.auto-update-stale=true status > /dev/null; then
+    echo "error: failed to snapshot workspace '$ws' at $dir" >&2
+    failed=1
+  fi
+done < <(jj workspace list -T 'name ++ "\n"')
+
+exit "$failed"

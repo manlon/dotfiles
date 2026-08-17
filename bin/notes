@@ -1,0 +1,26 @@
+#!/bin/sh
+# notes — open today's notes file in MacVim, optionally a topic-specific one.
+#
+# Usage:
+#   notes                 -> ~/Downloads/notes/notes-YYMMDD.md
+#   notes reply david     -> ~/Downloads/notes/notes-YYMMDD-reply-david.md
+#   notes "re: Q3 plan"   -> ~/Downloads/notes/notes-YYMMDD-re-q3-plan.md
+#
+# Arguments become a slug appended to the date: joined, lowercased, with runs
+# of non-alphanumeric characters collapsed to a single dash. A slug that
+# reduces to nothing (e.g. `notes ???`) is dropped rather than left dangling.
+
+set -eu
+
+dir="${NOTES_DIR:-$HOME/Downloads/notes}"
+name="notes-$(date +%y%m%d)"
+
+if [ "$#" -gt 0 ]; then
+  slug="$(printf '%s' "$*" | tr '[:upper:]' '[:lower:]' | tr -cs '[:alnum:]' '-')"
+  slug="${slug#-}"
+  slug="${slug%-}"
+  [ -n "$slug" ] && name="$name-$slug"
+fi
+
+mkdir -p "$dir"
+exec mvim "$dir/$name.md"

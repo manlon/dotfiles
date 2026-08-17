@@ -1,0 +1,22 @@
+#! /bin/bash
+gh pr list \
+  --search 'is:open user-review-requested:@me' \
+  --json number,title,url,author,statusCheckRollup \
+  --jq '
+    .[]
+    | select(
+        [.statusCheckRollup[]? |
+          (.conclusion // .state // "") |
+          ascii_upcase
+        ]
+        | all(
+            . != "FAILURE"
+            and . != "ERROR"
+            and . != "TIMED_OUT"
+            and . != "CANCELLED"
+            and . != "ACTION_REQUIRED"
+            and . != "STARTUP_FAILURE"
+          )
+      )
+    | "\(.number)\t\(.author.login)\t\(.title)\t\(.url)"
+  '

@@ -1,0 +1,60 @@
+#!/bin/sh
+# jj-follow — keep this workspace's working copy on top of another
+# workspace's latest checkpoint.
+#
+# Run it from the workspace that should follow (e.g. the main checkout
+# hosting a dev server). Whenever the followed workspace checkpoints
+# (its @- moves), this runs `jj new <workspace>@-` here, so file
+# watchers (Phoenix code reload, etc.) pick the work up immediately.
+#
+# Usage: jj-follow <workspace-name> [interval-seconds]
+#
+# Safety properties:
+#   * read-only polls use --ignore-working-copy, so the loop never
+#     snapshots or takes the working-copy lock while idle
+#   * refuses to run inside the followed workspace itself
+#   * skips a sync (with a warning) if @ has local changes or a
+#     description, so in-progress work is never swapped out from
+#     under an editor
+
+set -eu
+
+ws="${1:?usage: jj-follow <workspace-name> [interval-seconds]}"
+interval="${2:-2}"
+
+if ! jj workspace list | grep -q "^${ws}: "; then
+  echo "jj-follow: workspace '${ws}' not found; available workspaces:" >&2
+  jj workspace list >&2
+  exit 1
+fi
+
+target_rev="${ws}@-"
+
+peek() {
+  jj log -r "$1" --no-graph -T "$2" --ignore-working-copy 2>/dev/null
+}
+
+if [ "$(peek "${ws}@" commit_id)" = "$(peek '@' commit_id)" ]; then
+  echo "jj-follow: refusing to follow '${ws}' from inside itself" >&2
+  exit 1
+fi
+
+echo "following ${target_rev} every ${interval}s from $(jj workspace root) — ctrl-c to stop"
+
+while :; do
+  target="$(peek "$target_rev" commit_id || true)"
+
+  if [ -n "$target" ] && [ "$target" != "$(peek '@-' commit_id)" ]; then
+    # A sync is due. This check deliberately snapshots (no
+    # --ignore-working-copy) so brand-new local file edits count as dirty.
+    state="$(jj log -r '@' --no-graph -T 'if(empty && description == "", "clean", "dirty")')"
+    if [ "$state" = "clean" ]; then
+      echo "sync → $(peek "$target_rev" 'change_id.short() ++ " " ++ description.first_line()')"
+      jj new "$target"
+    else
+      echo "jj-follow: skipping sync — @ has local changes or a description" >&2
+    fi
+  fi
+
+  sleep "$interval"
+done
