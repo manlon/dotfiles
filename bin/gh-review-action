@@ -1,22 +1,221 @@
-#! /bin/bash
-gh pr list \
-  --search 'is:open user-review-requested:@me' \
-  --json number,title,url,author,statusCheckRollup \
-  --jq '
-    .[]
-    | select(
-        [.statusCheckRollup[]? |
-          (.conclusion // .state // "") |
-          ascii_upcase
-        ]
-        | all(
-            . != "FAILURE"
-            and . != "ERROR"
-            and . != "TIMED_OUT"
-            and . != "CANCELLED"
-            and . != "ACTION_REQUIRED"
-            and . != "STARTUP_FAILURE"
-          )
-      )
-    | "\(.number)\t\(.author.login)\t\(.title)\t\(.url)"
-  '
+#!/usr/bin/env bash
+# gh-review-action — the open PRs that want something from you, grouped by what.
+set -euo pipefail
+
+PROG=${0##*/}
+
+MODE=review
+LIMIT=50
+OUTPUT=pretty
+declare -a SCOPES=()
+
+usage() {
+  cat <<EOF
+usage: $PROG [MODE] [flags]
+
+MODES
+  review      PRs waiting on your review (default)
+  changes     yours with feedback to address (changes requested, review comments)
+  waiting     yours with reviewers assigned but no review yet
+  attention   yours that are stuck: conflicts, failing checks, draft,
+              no reviewers, or approved and waiting to merge
+  mine        every open PR you authored, grouped
+  all         review + mine
+
+FLAGS
+  -R, --repo OWNER/REPO   limit to a repo (repeatable)
+  -O, --owner OWNER       limit to an org or user (repeatable)
+  -L, --limit N           max PRs per query, 1-100 (default $LIMIT)
+      --tsv               bucket/id/title/author/age/url, tab separated
+      --no-color          plain output
+  -h, --help              this
+
+Searches every repo you can see unless narrowed with --repo/--owner.
+EOF
+}
+
+while (($#)); do
+  case $1 in
+    review | changes | waiting | attention | mine | all) MODE=$1 ;;
+    -R | --repo) SCOPES+=("repo:$2"); shift ;;
+    -O | --owner | --org) SCOPES+=("org:$2"); shift ;;
+    -L | --limit) LIMIT=$2; shift ;;
+    --tsv) OUTPUT=tsv ;;
+    --no-color) NO_COLOR=1 ;;
+    -h | --help) usage; exit 0 ;;
+    *)
+      printf '%s: unknown argument: %s\n\n' "$PROG" "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
+
+if ! [[ $LIMIT =~ ^[0-9]+$ ]] || ((LIMIT < 1)); then
+  printf '%s: --limit wants a positive integer, got %s\n' "$PROG" "$LIMIT" >&2
+  exit 2
+fi
+# The GraphQL search connection refuses a page larger than 100.
+((LIMIT > 100)) && LIMIT=100
+
+if [[ -t 1 && -z ${NO_COLOR:-} && $OUTPUT == pretty ]]; then
+  BOLD=$'\e[1m' DIM=$'\e[2m' RESET=$'\e[0m'
+  RED=$'\e[31m' GREEN=$'\e[32m' YELLOW=$'\e[33m' BLUE=$'\e[34m' CYAN=$'\e[36m'
+else
+  BOLD='' DIM='' RESET='' RED='' GREEN='' YELLOW='' BLUE='' CYAN=''
+fi
+
+SCOPE="${SCOPES[*]:-}"
+
+read -r -d '' GQL <<'EOF' || true
+query($q: String!, $limit: Int!) {
+  search(query: $q, type: ISSUE, first: $limit) {
+    nodes {
+      ... on PullRequest {
+        number
+        title
+        url
+        isDraft
+        mergeable
+        reviewDecision
+        updatedAt
+        author { login }
+        repository { nameWithOwner }
+        reviewRequests { totalCount }
+        latestReviews(first: 25) { nodes { state } }
+        commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+      }
+    }
+  }
+}
+EOF
+
+# Shared jq vocabulary. `reviews` drops DISMISSED and PENDING so a dismissed
+# review doesn't read as feedback that's still standing.
+read -r -d '' JQ_PRELUDE <<'EOF' || true
+def ago:
+  (now - fromdateiso8601) as $s
+  | if $s < 3600 then "\(($s / 60) | floor)m"
+    elif $s < 86400 then "\(($s / 3600) | floor)h"
+    else "\(($s / 86400) | floor)d" end;
+def rollup: (.commits.nodes[0].commit.statusCheckRollup.state // "NONE");
+def failing: (rollup | . == "FAILURE" or . == "ERROR");
+def reviews:
+  [.latestReviews.nodes[]?
+   | select(.state == "COMMENTED" or .state == "APPROVED" or .state == "CHANGES_REQUESTED")];
+def row($bucket):
+  [$bucket,
+   "\(.repository.nameWithOwner)#\(.number)",
+   .title,
+   (.author.login // "ghost"),
+   (.updatedAt | ago),
+   .url]
+  | @tsv;
+def prs: .data.search.nodes[] | select(.number != null);
+EOF
+
+# First match wins, so this order is a priority order: what you have to act on
+# ranks above what you are only waiting on. `mergeable` is computed lazily by
+# GitHub and reads UNKNOWN for a minute or so after a push, so a fresh conflict
+# can land in a later bucket until the next run.
+read -r -d '' JQ_MINE <<'EOF' || true
+def bucket:
+  if .reviewDecision == "CHANGES_REQUESTED" then "changes-requested"
+  elif .mergeable == "CONFLICTING" then "conflicts"
+  elif failing then "ci-failing"
+  elif .isDraft then "draft"
+  elif .reviewDecision == "APPROVED" then "approved"
+  elif ((.reviewRequests.totalCount // 0) == 0 and (reviews | length) == 0) then "unassigned"
+  elif (reviews | length) > 0 then "commented"
+  else "waiting" end;
+prs | row(bucket)
+EOF
+
+label() {
+  case $1 in
+    review) printf 'Waiting on your review' ;;
+    changes-requested) printf 'Changes requested' ;;
+    commented) printf 'Review comments to address' ;;
+    conflicts) printf 'Merge conflicts' ;;
+    ci-failing) printf 'Checks failing' ;;
+    approved) printf 'Approved, ready to merge' ;;
+    draft) printf 'Draft' ;;
+    unassigned) printf 'No reviewers assigned' ;;
+    waiting) printf 'Waiting on first review' ;;
+  esac
+}
+
+hue() {
+  case $1 in
+    review) printf '%s' "$BLUE" ;;
+    changes-requested | conflicts | ci-failing) printf '%s' "$RED" ;;
+    commented | unassigned) printf '%s' "$YELLOW" ;;
+    approved) printf '%s' "$GREEN" ;;
+    *) printf '%s' "$CYAN" ;;
+  esac
+}
+
+search() { # $1 = search qualifiers beyond "open PR"
+  gh api graphql -f query="$GQL" -f q="is:open is:pr sort:updated-desc $1 $SCOPE" -F limit="$LIMIT"
+}
+
+ROWS=''
+HIDDEN=0
+
+collect() {
+  [[ -n $1 ]] && ROWS+="$1"$'\n'
+  return 0
+}
+
+case $MODE in
+  review | all)
+    json=$(search 'user-review-requested:@me draft:false')
+    collect "$(jq -r "$JQ_PRELUDE"' prs | select(failing | not) | row("review")' <<<"$json")"
+    HIDDEN=$(jq -r "$JQ_PRELUDE"' [prs | select(failing)] | length' <<<"$json")
+    ;;
+esac
+
+case $MODE in
+  changes | waiting | attention | mine | all)
+    json=$(search 'author:@me')
+    collect "$(jq -r "$JQ_PRELUDE$JQ_MINE" <<<"$json")"
+    ;;
+esac
+
+case $MODE in
+  review) ORDER=(review) ;;
+  changes) ORDER=(changes-requested commented) ;;
+  waiting) ORDER=(waiting) ;;
+  attention) ORDER=(conflicts ci-failing draft unassigned approved) ;;
+  mine) ORDER=(changes-requested commented conflicts ci-failing unassigned waiting approved draft) ;;
+  all) ORDER=(review changes-requested commented conflicts ci-failing unassigned waiting approved draft) ;;
+esac
+
+if [[ $OUTPUT == tsv ]]; then
+  for bucket in "${ORDER[@]}"; do
+    awk -F'\t' -v b="$bucket" '$1 == b' <<<"$ROWS"
+  done
+  exit 0
+fi
+
+shown=0
+for bucket in "${ORDER[@]}"; do
+  rows=$(awk -F'\t' -v b="$bucket" '$1 == b' <<<"$ROWS")
+  [[ -z $rows ]] && continue
+  count=$(grep -c '' <<<"$rows")
+  printf '%s%s%s%s %s%s%s\n' "$BOLD" "$(hue "$bucket")" "$(label "$bucket")" "$RESET" "$DIM" "$count" "$RESET"
+  while IFS=$'\t' read -r _ id title author age url; do
+    # Every PR in a "mine" bucket has the same author; only name it when the
+    # bucket holds other people's work.
+    [[ $bucket == review ]] && by="@$author · " || by=''
+    printf '  %s%s%s  %s\n' "$CYAN" "$id" "$RESET" "$title"
+    printf '  %s└ %s%s · %s%s\n' "$DIM" "$by" "$age" "$url" "$RESET"
+    shown=$((shown + 1))
+  done <<<"$rows"
+  printf '\n'
+done
+
+((HIDDEN > 0)) && printf '%s%d review request(s) hidden for failing checks%s\n' "$DIM" "$HIDDEN" "$RESET"
+((shown == 0)) && printf '%snothing here%s\n' "$DIM" "$RESET"
+exit 0
