@@ -16,7 +16,8 @@ usage: $PROG [MODE] [flags]
 MODES
   review      PRs waiting on your review (default)
   changes     yours with feedback to address (changes requested, review comments)
-  waiting     yours with reviewers assigned but no review yet
+  waiting     yours sitting with a reviewer: assigned but unreviewed, or
+              re-requested after you addressed the feedback
   attention   yours that are stuck: conflicts, failing checks, draft,
               no reviewers, or approved and waiting to merge
   mine        every open PR you authored, grouped
@@ -104,6 +105,16 @@ def failing: (rollup | . == "FAILURE" or . == "ERROR");
 def reviews:
   [.latestReviews.nodes[]?
    | select(.state == "COMMENTED" or .state == "APPROVED" or .state == "CHANGES_REQUESTED")];
+# `reviewDecision` sticks at CHANGES_REQUESTED until the blocking reviewer
+# submits again — re-requesting them never clears it, so a PR whose feedback
+# was answered weeks ago still reads as blocked. `latestReviews` does drop a
+# reviewer once their re-review is requested, so an empty set under that
+# decision means every blocker was re-requested and the ball is theirs.
+def blocked: (.reviewDecision == "CHANGES_REQUESTED");
+def changes_standing:
+  blocked and ([reviews[] | select(.state == "CHANGES_REQUESTED")] | length > 0);
+def rerequested:
+  blocked and (changes_standing | not) and ((.reviewRequests.totalCount // 0) > 0);
 def row($bucket):
   [$bucket,
    "\(.repository.nameWithOwner)#\(.number)",
@@ -121,11 +132,12 @@ EOF
 # can land in a later bucket until the next run.
 read -r -d '' JQ_MINE <<'EOF' || true
 def bucket:
-  if .reviewDecision == "CHANGES_REQUESTED" then "changes-requested"
+  if changes_standing then "changes-requested"
   elif .mergeable == "CONFLICTING" then "conflicts"
   elif failing then "ci-failing"
   elif .isDraft then "draft"
   elif .reviewDecision == "APPROVED" then "approved"
+  elif rerequested then "re-review"
   elif ((.reviewRequests.totalCount // 0) == 0 and (reviews | length) == 0) then "unassigned"
   elif (reviews | length) > 0 then "commented"
   else "waiting" end;
@@ -143,6 +155,7 @@ label() {
     draft) printf 'Draft' ;;
     unassigned) printf 'No reviewers assigned' ;;
     waiting) printf 'Waiting on first review' ;;
+    re-review) printf 'Feedback addressed, waiting on re-review' ;;
   esac
 }
 
@@ -186,10 +199,10 @@ esac
 case $MODE in
   review) ORDER=(review) ;;
   changes) ORDER=(changes-requested commented) ;;
-  waiting) ORDER=(waiting) ;;
+  waiting) ORDER=(waiting re-review) ;;
   attention) ORDER=(conflicts ci-failing draft unassigned approved) ;;
-  mine) ORDER=(changes-requested commented conflicts ci-failing unassigned waiting approved draft) ;;
-  all) ORDER=(review changes-requested commented conflicts ci-failing unassigned waiting approved draft) ;;
+  mine) ORDER=(changes-requested commented conflicts ci-failing unassigned waiting re-review approved draft) ;;
+  all) ORDER=(review changes-requested commented conflicts ci-failing unassigned waiting re-review approved draft) ;;
 esac
 
 if [[ $OUTPUT == tsv ]]; then
