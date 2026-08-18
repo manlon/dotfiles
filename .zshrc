@@ -131,9 +131,9 @@ alias jjsc="jj show cur"
 alias jjrm="jj rebase -o main"
 alias jjlm="jj log -r mine"
 alias jjsa="/Users/hanlon/.local/bin/jj-snapshot-all"
-alias notes='mvim ~/Downloads/notes/notes-$(date +%y%m%d).md'
 
 alias hd="hunk diff"
+alias td="tuicr -r"
 
 alias dot='export $(rg -o "^[^#]*" .env | xargs)'
 
