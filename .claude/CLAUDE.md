@@ -95,6 +95,18 @@ Avoid comments that describe transient state outside the source file — rollout
 Similarly, don't document a previous or rejected implementation ("we used to do X", "don't switch to Y because Z") unless a future maintainer would plausibly reach for that approach unprompted *and* the cost of reverting is high. Comments that preserve the edit history of one session are just noise; version control already preserves the edit history we need.
 
 
+## Code Review Output
+
+Every code review (the `/code-review` skill or an ad-hoc review) ends with three deliverables:
+
+1. **`ReportFindings`** — the UI findings list. The forked reviewer often lacks the tool; the parent session must file it from the fork's results.
+2. **Durable write-up** at `~/src/support/reviews/pr-<n>-review.md` — never inside the repo under review, even though `reviews/` may be git-excluded there. Full evidence per finding: severity, quoted code, failure scenario, fix.
+3. **Chat summary: a terse numbered list of ALL findings**, one item per finding, in this exact shape:
+
+   > N. **Two-to-four-word label** — one-sentence finding stating the concrete failure (`file.ex:line`). *Fix: one sentence, naming the existing helper/pattern to reuse when one exists.*
+
+   No headers, tables, or per-finding evidence dumps — the write-up carries those. This list is required even where skill instructions say "do not also print the findings as text"; that rule yields to this one. The `ReportFindings` render drops the reasoning, so this list is the primary thing I read in chat.
+
 ## Shell Commands & Editing
 
 Prefer built-in tools (Glob, Grep, Read, Edit) over shell commands. When Bash is needed for search, use `fd` and `rg` — never `find` or `grep`. [Note: `rg` is recursive by default — don't pass `-r` for recursive behavior. In `rg`, `-r` means `--replace`]
