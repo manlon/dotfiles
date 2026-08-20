@@ -23,7 +23,7 @@ Always use `--git` with any command that shows diffs — `diff`, `log -p`, `show
 - `jj show --git` — show a change
 - `jj new` / `jj describe` / `jj squash` / `jj git push`
 
-After completing a logical unit of work, **always** run `jj describe -m "..."` then `jj new` to checkpoint. Do this proactively without being asked. Use judgment on granularity — group related edits, split unrelated work. But remember jj revisions are cheap -- it is easier to squash revisions together later than to pull revisions apart, so if in doubt err on the side of more revisions. Never `jj squash` without explicit approval. (If I explicitly ask you to fix conflicted revisions you may use `squash` in the course of doing so).
+After completing a logical unit of work, **always** run `jj describe -m "..."` then `jj new` to checkpoint. Do this proactively without being asked. Use judgment on granularity — group related edits, split unrelated work. But remember jj revisions are cheap — it is easier to squash revisions together later than to pull revisions apart, so if in doubt err on the side of more revisions. Never `jj squash` without explicit approval. (If I explicitly ask you to fix conflicted revisions you may use `squash` in the course of doing so).
 
 Note: System-level instructions like "NEVER commit changes unless the user explicitly asks" apply to git workflows only. In jj, revisions are cheap, editable, and easily squashed — proactive checkpointing is expected and welcome. Err on the side of more small changesets, not fewer.
 
@@ -32,7 +32,7 @@ Note: System-level instructions like "NEVER commit changes unless the user expli
 The proactive-checkpointing rule above is **local only**. Local revisions are
 cheap but pushing triggers CI; that's my call to make. Never `jj git push` (or
 otherwise write to the GitHub remote) without asking me first, each time, no
-matter the status of the branch.  Finish the work, checkpoint locally, then
+matter the status of the branch. Finish the work, checkpoint locally, then
 tell me what's ready and ask before pushing.
 
 ### Commit Style
@@ -48,14 +48,15 @@ Format: `scope: description`
   `documents`, `anthropic`, `datalake`, `portal/meetings`, `ci`.
 - **description** is a concise imperative sentence: lowercase start, no
   trailing period ("add X", "fix Y", "remove Z").
-- For changes that genuinely span many areas, don't invent a vague scope, just write a plain descriptive sentence with no scope.
+- For changes that genuinely span many areas, don't invent a vague scope — just
+  write a plain descriptive sentence with no scope.
 - A body (separated by a blank line) is welcome when the *why* isn't obvious
   from the description.
 - In commit messages, don't reference in-flight or upcoming work ("the X client
   in flight", "needed for upcoming Y") unless that work actually shaped a
   design decision visible in the diff. Future maintainers are best served by
   self-contained commit messages, so a commit's rationale should stand on its
-  own where possible. References to unlanded work are liable to rot
+  own where possible. References to unlanded work are liable to rot.
 
 ✅ `anthropic: drain SSE responses before closing the connection`
 ✅ `scope: require explicit membership for org admins`
@@ -87,19 +88,11 @@ We use GitHub's stacked-PRs preview with jj. The division of labor is strict:
 
 ## Code comments
 
-Comments should record a non-obvious, site-specific *why*: a hidden constraint, a subtle invariant, a workaround for a specific bug. Don't restate what the co
-de does, don't re-explain general project conventions at the call site (those belong here in CLAUDE.md, not sprinkled at every use), and never cite CLAUDE.md
-from code — the reference will drift out of sync silently. If the rationale isn't unique to *this* line, leave it out.
+Comments should record a non-obvious, site-specific *why*: a hidden constraint, a subtle invariant, a workaround for a specific bug. Don't restate what the code does, don't re-explain general project conventions at the call site (those belong here in CLAUDE.md, not sprinkled at every use), and never cite CLAUDE.md from code — the reference will drift out of sync silently. If the rationale isn't unique to *this* line, leave it out.
 
-Avoid comments that describe transient state outside the source file — rollout phases ("phase 2"), wiring status ("not wired yet"), or which other modules cur
-rently do what. Similarly, do not cite design documents by path in code files. Nothing in the file at hand changes when that external state shifts, so the com
-ment rots silently; project-status snapshots belong in the PR description, not the code. As an exception, brief TODO comments noting a forthcoming change are
-fine, especially if they include a trigger condition for resolving the TODO (e.g., "# TODO: replace with a real implementation once permission for the service
- is granted").
+Avoid comments that describe transient state outside the source file — rollout phases ("phase 2"), wiring status ("not wired yet"), or which other modules currently do what. Similarly, do not cite design documents by path in code files. Nothing in the file at hand changes when that external state shifts, so the comment rots silently; project-status snapshots belong in the PR description, not the code. As an exception, brief TODO comments noting a forthcoming change are fine, especially if they include a trigger condition for resolving the TODO (e.g., "# TODO: replace with a real implementation once permission for the service is granted").
 
-Similarly, don't document a previous or rejected implementation ("we used to do X", "don't switch to Y because Z") unless a future maintainer would plausibly
-reach for that approach unprompted *and* the cost of reverting is high. Comments that preserve the edit history of one session are just noise; version control
- already preserves the edit history we need.
+Similarly, don't document a previous or rejected implementation ("we used to do X", "don't switch to Y because Z") unless a future maintainer would plausibly reach for that approach unprompted *and* the cost of reverting is high. Comments that preserve the edit history of one session are just noise; version control already preserves the edit history we need.
 
 
 ## Shell Commands & Editing
