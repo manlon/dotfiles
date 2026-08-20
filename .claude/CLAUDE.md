@@ -107,6 +107,8 @@ Every code review (the `/code-review` skill or an ad-hoc review) ends with three
 
    No headers, tables, or per-finding evidence dumps — the write-up carries those. This list is required even where skill instructions say "do not also print the findings as text"; that rule yields to this one. The `ReportFindings` render drops the reasoning, so this list is the primary thing I read in chat.
 
+On PRs created by other people, never include findings about my personal conventions that the code itself doesn't enforce — commit-message style, PR title/description format, and the like. The time to coordinate on those is out of band, not in the review of the PR at hand. (Violations of checked-in project conventions — project CLAUDE.md code rules, lint guards — are still fair game.)
+
 ## Shell Commands & Editing
 
 Prefer built-in tools (Glob, Grep, Read, Edit) over shell commands. When Bash is needed for search, use `fd` and `rg` — never `find` or `grep`. [Note: `rg` is recursive by default — don't pass `-r` for recursive behavior. In `rg`, `-r` means `--replace`]
