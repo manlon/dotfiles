@@ -30,8 +30,12 @@ if ! (cd "$repo_root" 2>/dev/null && jj root >/dev/null 2>&1); then
   exit 0
 fi
 
-# Construct worktree path inside the repo's .claude/worktrees/ directory
-worktree_path="${repo_root}/.claude/worktrees/${ws_name}"
+# Site the workspace OUTSIDE the repo tree. A jj workspace nested under the
+# repo root has no .git of its own, so git discovers the parent checkout and
+# resolves the workspace's working tree to it; Claude Code's isolation check
+# refuses that ("work-tree-elsewhere"). Outside the tree, git finds no repo at
+# all and the check takes its explicit not-a-git-worktree accept path.
+worktree_path="${HOME}/src/_worktrees/$(basename "$repo_root")/${ws_name}"
 
 cd "$repo_root"
 mkdir -p "$(dirname "$worktree_path")"

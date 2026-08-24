@@ -11,7 +11,7 @@ if [[ $# -ge 1 ]]; then
   workspace_name=$1
   # Default to the current workspace root so it works from anywhere in the repo.
   repo_root=${2:-$(jj workspace root 2>/dev/null || pwd)}
-  worktree_path="${repo_root}/.claude/worktrees/${workspace_name}"
+  worktree_path="${HOME}/src/_worktrees/$(basename "$repo_root")/${workspace_name}"
 else
   input=$(cat)
   worktree_path=$(echo "$input" | jq -r '.worktree_path')
