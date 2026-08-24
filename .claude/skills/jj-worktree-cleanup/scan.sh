@@ -1,5 +1,6 @@
 #!/bin/bash
-# Scan .claude/worktrees/ jj workspaces and classify each as in-use / keep / removable.
+# Scan the repo's jj workspaces under ~/src/_worktrees/<repo>/ and classify each
+# as in-use / keep / removable.
 #
 # A workspace is IN_USE if some live Claude Code session has its cwd inside the
 # workspace path. Live sessions are read from ~/.claude/sessions/<pid>.json; a
@@ -12,21 +13,21 @@
 #   ORPHAN  — directory on disk with no matching jj workspace; rm -rf only
 set -euo pipefail
 
-# Find the main repo's .claude/worktrees dir by walking up from $PWD. Works from
-# the main checkout (finds its own) and from inside a workspace (the dir is an
-# ancestor, since workspaces live under main/.claude/worktrees/<name>).
-dir="$PWD"
-worktrees=""
-while [[ "$dir" != "/" ]]; do
-  if [[ -d "$dir/.claude/worktrees" ]]; then
-    worktrees="$dir/.claude/worktrees"
-    break
-  fi
-  dir="$(dirname "$dir")"
-done
+# Workspaces live outside the repo at ~/src/_worktrees/<repo>/<name>, where
+# <repo> is the basename of the main checkout. Derive <repo> from $PWD: inside a
+# workspace, take the path component after _worktrees/; otherwise use the
+# current jj root, which is the main checkout.
+wt_base="$HOME/src/_worktrees"
+if [[ "$PWD" == "$wt_base"/* ]]; then
+  rel="${PWD#"$wt_base"/}"
+  repo_name="${rel%%/*}"
+else
+  repo_name="$(basename "$(jj root 2>/dev/null || pwd)")"
+fi
+worktrees="$wt_base/$repo_name"
 
-if [[ -z "$worktrees" ]]; then
-  echo "ERROR: no .claude/worktrees directory found above $PWD" >&2
+if [[ ! -d "$worktrees" ]]; then
+  echo "ERROR: no workspace directory at $worktrees" >&2
   exit 1
 fi
 
@@ -61,7 +62,7 @@ shopt -s nullglob
 for path in "$worktrees"/*/; do
   path="${path%/}"
   name="$(basename "$path")"
-  [[ "$name" == .* ]] && continue  # skip .claude and other dotfiles
+  [[ "$name" == .* ]] && continue  # skip dotfiles
 
   if ! is_workspace "$name"; then
     printf 'ORPHAN\t%s\t%s\t%s\n' "$name" "$path" "dir on disk, no jj workspace"

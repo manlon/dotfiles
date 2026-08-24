@@ -1,7 +1,7 @@
 ---
 name: jj-worktree-cleanup
 description: >
-  Clean up unused jj-workspace worktrees under .claude/worktrees/. Detects which
+  Clean up unused jj-workspace worktrees under ~/src/_worktrees/<repo>/. Detects which
   worktrees have no live Claude Code session using them and removes them (jj
   workspace forget + rm -rf), preserving any with a .keep marker. Use when asked
   to clean up, prune, or remove stale/unused worktrees or workspaces.

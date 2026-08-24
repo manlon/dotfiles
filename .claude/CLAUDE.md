@@ -7,9 +7,9 @@ Most of my repos are jj (Jujutsu) colocated with git. **Check for a `.jj/` direc
 
 ### Worktrees are jj workspaces
 
-In a jj repo, the harness `EnterWorktree`/`ExitWorktree` tools and the `.claude/worktrees/` directory do **not** create git worktrees. `WorktreeCreate`/`WorktreeRemove` hooks (`~/.claude/hooks/jj-worktree-{create,remove}.sh`, registered globally in `~/.claude/settings.json`) intercept these and run `jj workspace add` / `jj workspace forget` instead. Outside a jj repo the hooks exit silently and you get an ordinary git worktree. Implications:
+In a jj repo, the harness `EnterWorktree`/`ExitWorktree` tools do **not** create git worktrees. `WorktreeCreate`/`WorktreeRemove` hooks (`~/.claude/hooks/jj-worktree-{create,remove}.sh`, registered globally in `~/.claude/settings.json`) intercept these and run `jj workspace add` / `jj workspace forget` instead, placing the workspace at `~/src/_worktrees/<repo>/<name>/` — outside the repo tree, so git doesn't discover the parent checkout and trip the harness's isolation check. Outside a jj repo the hooks exit silently and you get an ordinary git worktree under `.claude/worktrees/`. Implications:
 
-- Inside a `.claude/worktrees/<name>/` directory, you are in a **jj workspace**, not a git worktree. Use `jj st`, `jj diff --git`, `jj log`, etc. — `git status` / `git worktree list` will be misleading or wrong.
+- Inside a `~/src/_worktrees/<repo>/<name>/` directory, you are in a **jj workspace**, not a git worktree. Use `jj st`, `jj diff --git`, `jj log`, etc. — `git status` / `git worktree list` will be misleading or wrong.
 - To list active workspaces: `jj workspace list` (run from anywhere in the repo).
 - Each workspace has its own `@` (working-copy commit) but shares the underlying repo and op-log. Edits in one workspace don't appear at another's `@` until you `jj new` / `jj edit` onto the same commit there.
 - The harness still calls these "worktrees" in its UI and tool names — that's the abstraction it exposes. Mentally translate to "workspace" when reasoning about VCS behavior.
