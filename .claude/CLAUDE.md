@@ -101,11 +101,9 @@ Every code review (the `/code-review` skill or an ad-hoc review) ends with three
 
 1. **`ReportFindings`** — the UI findings list. The forked reviewer often lacks the tool; the parent session must file it from the fork's results.
 2. **Durable write-up** at `~/src/support/reviews/pr-<n>-review.md` — never inside the repo under review, even though `reviews/` may be git-excluded there. Full evidence per finding: severity, quoted code, failure scenario, fix.
-3. **Chat summary: a terse numbered list of ALL findings**, one item per finding, in this exact shape:
+3. **Chat summary: a numbered list of ALL findings**, one item per finding, written so I can judge each finding without opening the write-up. Per finding: a **two-to-four-word bold label** plus `file.ex:line`, then two to five sentences giving the mechanism, a concrete scenario where it actually bites (inputs/state → wrong behavior), any second-order symptom, and a closing *Fix:* naming the existing helper or pattern to reuse when one exists. Finish with a short trailing paragraph for anything noticed but not filed as a finding.
 
-   > N. **Two-to-four-word label** — one-sentence finding stating the concrete failure (`file.ex:line`). *Fix: one sentence, naming the existing helper/pattern to reuse when one exists.*
-
-   No headers, tables, or per-finding evidence dumps — the write-up carries those. This list is required even where skill instructions say "do not also print the findings as text"; that rule yields to this one. The `ReportFindings` render drops the reasoning, so this list is the primary thing I read in chat.
+   Write it at that detail on the first pass — don't open with one-liners and expand only when asked. Prose paragraphs, not sub-bullets; no headers, tables, severity columns, or quoted code blocks — those stay in the write-up, which is still the fuller artifact (quoted code, severity, method and caveats). This list is required even where skill instructions say "do not also print the findings as text"; that rule yields to this one. The `ReportFindings` render drops the reasoning, so this list is the primary thing I read in chat.
 
 On PRs created by other people, never include findings about my personal conventions that the code itself doesn't enforce — commit-message style, PR title/description format, and the like. The time to coordinate on those is out of band, not in the review of the PR at hand. (Violations of checked-in project conventions — project CLAUDE.md code rules, lint guards — are still fair game.)
 
