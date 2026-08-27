@@ -29,6 +29,12 @@
       "alignment": "left",
       "segments": [
         {
+          "foreground": "#FF6AC1",
+          "style": "plain",
+          "template": "{{ if .SSHSession }}{{ .UserName }}@{{ .HostName }} {{ end }}",
+          "type": "session"
+        },
+        {
           "foreground": "#77E4F7",
           "options": {
             "style": "full"
