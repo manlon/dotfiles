@@ -45,11 +45,8 @@
         },
         {
           "foreground": "#FFB86C",
-          "options": {
-            "fetch_status": true
-          },
           "style": "plain",
-          "template": " {{ .ChangeID }}{{ if .Working.Changed }}  {{ .Working.String }}{{ end }} ",
+          "template": " {{ .ChangeID }}{{ if .ClosestBookmarks }}  {{ .ClosestBookmarks }}{{ if gt .AheadCount 0 }} ⇡{{ .AheadCount }}{{ end }}{{ end }}{{ if .Working.Changed }}  {{ .Working.String }}{{ end }} ",
           "type": "jujutsu"
         },
         {
