@@ -28,7 +28,8 @@ FLAGS
   -O, --owner OWNER       limit to an org or user (repeatable)
   -L, --limit N           max PRs per query, 1-100 (default $LIMIT)
       --tsv               bucket/id/title/author/age/url, tab separated
-      --no-color          plain output
+      --paste             plain text for a chat message: bare URLs, no markup
+      --no-color          drop the ANSI colors from the default output
   -h, --help              this
 
 Searches every repo you can see unless narrowed with --repo/--owner.
@@ -42,6 +43,7 @@ while (($#)); do
     -O | --owner | --org) SCOPES+=("org:$2"); shift ;;
     -L | --limit) LIMIT=$2; shift ;;
     --tsv) OUTPUT=tsv ;;
+    --paste | --teams | --slack) OUTPUT=paste ;;
     --no-color) NO_COLOR=1 ;;
     -h | --help) usage; exit 0 ;;
     *)
@@ -209,6 +211,42 @@ if [[ $OUTPUT == tsv ]]; then
   for bucket in "${ORDER[@]}"; do
     awk -F'\t' -v b="$bucket" '$1 == b' <<<"$ROWS"
   done
+  exit 0
+fi
+
+if [[ $OUTPUT == paste ]]; then
+  ordered=''
+  for bucket in "${ORDER[@]}"; do
+    rows=$(awk -F'\t' -v b="$bucket" '$1 == b' <<<"$ROWS")
+    [[ -n $rows ]] && ordered+="$rows"$'\n'
+  done
+  ordered=${ordered%$'\n'}
+
+  if [[ -z $ordered ]]; then
+    printf 'nothing here\n'
+    exit 0
+  fi
+
+  total=$(grep -c '' <<<"$ordered")
+  # A bare "#123" only reads unambiguously when every PR came from one repo;
+  # otherwise the owner/repo prefix has to stay.
+  repos=$(cut -f2 <<<"$ordered" | sed 's/#.*$//' | sort -u | grep -c '')
+
+  printf 'PR review queue — %d open\n' "$total"
+  for bucket in "${ORDER[@]}"; do
+    rows=$(awk -F'\t' -v b="$bucket" '$1 == b' <<<"$ordered")
+    [[ -z $rows ]] && continue
+    printf '\n%s (%d)\n' "$(label "$bucket")" "$(grep -c '' <<<"$rows")"
+    while IFS=$'\t' read -r _ id title author age url; do
+      ((repos == 1)) && id="#${id##*#}"
+      [[ $bucket == review ]] && by="@$author · " || by=''
+      # The URL goes on its own line, bare: chat clients auto-link it, and
+      # markdown link syntax gets mangled by Teams' compose box.
+      printf '• %s — %s · %s%s\n  %s\n' "$id" "$title" "$by" "$age" "$url"
+    done <<<"$rows"
+  done
+
+  ((HIDDEN > 0)) && printf '%d review request(s) hidden for failing checks\n' "$HIDDEN" >&2
   exit 0
 fi
 
