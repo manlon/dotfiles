@@ -14,7 +14,8 @@ usage() {
 usage: $PROG [MODE] [flags]
 
 MODES
-  review      PRs waiting on your review (default)
+  review      PRs waiting on your review, plus ones you blocked and are
+              waiting on the author to answer (default)
   changes     yours with feedback to address (changes requested, review comments)
   waiting     yours sitting with a reviewer: assigned but unreviewed, or
               re-requested after you addressed the feedback
@@ -73,6 +74,7 @@ SCOPE="${SCOPES[*]:-}"
 
 read -r -d '' GQL <<'EOF' || true
 query($q: String!, $limit: Int!) {
+  viewer { login }
   search(query: $q, type: ISSUE, first: $limit) {
     nodes {
       ... on PullRequest {
@@ -86,7 +88,7 @@ query($q: String!, $limit: Int!) {
         author { login }
         repository { nameWithOwner }
         reviewRequests { totalCount }
-        latestReviews(first: 25) { nodes { state } }
+        latestReviews(first: 25) { nodes { state author { login } } }
         commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
       }
     }
@@ -117,6 +119,14 @@ def changes_standing:
   blocked and ([reviews[] | select(.state == "CHANGES_REQUESTED")] | length > 0);
 def rerequested:
   blocked and (changes_standing | not) and ((.reviewRequests.totalCount // 0) > 0);
+# Someone else's changes-requested review can hold the same PR at that
+# decision, so ask whether *your* review is the one still standing. Once the
+# author re-requests you, `latestReviews` drops your review and the PR leaves
+# this set for the plain review queue.
+def changes_requested_by_me($me):
+  [.latestReviews.nodes[]?
+   | select((.author.login // "") == $me and .state == "CHANGES_REQUESTED")]
+  | length > 0;
 def row($bucket):
   [$bucket,
    "\(.repository.nameWithOwner)#\(.number)",
@@ -149,6 +159,7 @@ EOF
 label() {
   case $1 in
     review) printf 'Waiting on your review' ;;
+    awaiting-author) printf 'You requested changes, waiting on the author' ;;
     changes-requested) printf 'Changes requested' ;;
     commented) printf 'Review comments to address' ;;
     conflicts) printf 'Merge conflicts' ;;
@@ -188,6 +199,13 @@ case $MODE in
     json=$(search 'user-review-requested:@me draft:false')
     collect "$(jq -r "$JQ_PRELUDE"' prs | select(failing | not) | row("review")' <<<"$json")"
     HIDDEN=$(jq -r "$JQ_PRELUDE"' [prs | select(failing)] | length' <<<"$json")
+
+    json=$(search 'reviewed-by:@me review:changes_requested -author:@me')
+    collect "$(jq -r "$JQ_PRELUDE"'
+      .data.viewer.login as $me
+      | prs
+      | select(changes_requested_by_me($me))
+      | row("awaiting-author")' <<<"$json")"
     ;;
 esac
 
@@ -199,12 +217,12 @@ case $MODE in
 esac
 
 case $MODE in
-  review) ORDER=(review) ;;
+  review) ORDER=(review awaiting-author) ;;
   changes) ORDER=(changes-requested commented) ;;
   waiting) ORDER=(waiting re-review) ;;
   attention) ORDER=(conflicts ci-failing draft unassigned approved) ;;
   mine) ORDER=(changes-requested commented conflicts ci-failing unassigned waiting re-review approved draft) ;;
-  all) ORDER=(review changes-requested commented conflicts ci-failing unassigned waiting re-review approved draft) ;;
+  all) ORDER=(review changes-requested commented conflicts ci-failing unassigned waiting re-review approved draft awaiting-author) ;;
 esac
 
 if [[ $OUTPUT == tsv ]]; then
@@ -239,7 +257,7 @@ if [[ $OUTPUT == paste ]]; then
     printf '\n%s (%d)\n' "$(label "$bucket")" "$(grep -c '' <<<"$rows")"
     while IFS=$'\t' read -r _ id title author age url; do
       ((repos == 1)) && id="#${id##*#}"
-      [[ $bucket == review ]] && by="@$author · " || by=''
+      [[ $bucket == review || $bucket == awaiting-author ]] && by="@$author · " || by=''
       # The URL goes on its own line, bare: chat clients auto-link it, and
       # markdown link syntax gets mangled by Teams' compose box.
       printf '• %s — %s · %s%s\n  %s\n' "$id" "$title" "$by" "$age" "$url"
@@ -259,7 +277,7 @@ for bucket in "${ORDER[@]}"; do
   while IFS=$'\t' read -r _ id title author age url; do
     # Every PR in a "mine" bucket has the same author; only name it when the
     # bucket holds other people's work.
-    [[ $bucket == review ]] && by="@$author · " || by=''
+    [[ $bucket == review || $bucket == awaiting-author ]] && by="@$author · " || by=''
     printf '  %s%s%s  %s\n' "$CYAN" "$id" "$RESET" "$title"
     printf '  %s└ %s%s · %s%s\n' "$DIM" "$by" "$age" "$url" "$RESET"
     shown=$((shown + 1))
