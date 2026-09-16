@@ -1,3 +1,7 @@
 # .claude/CLAUDE.md is the tracked global instructions file; ~/.claude/CLAUDE.md
-# is a local symlink to it, so Claude Code auto-loads it in every repo. Nothing
-# needs ignoring at the root anymore — kept as a placeholder for local-only files.
+# is a local symlink to it, so Claude Code auto-loads it in every repo.
+
+# Claude Code syncs account-level skills (claude.ai) into ~/.claude/skills/synced,
+# which resolves into this repo through the ~/.claude/skills symlink. It is a
+# per-machine cache with proprietary content and churns on every sync.
+.claude/skills/synced/
