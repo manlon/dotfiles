@@ -17,6 +17,7 @@ In a jj repo, the harness `EnterWorktree`/`ExitWorktree` tools do **not** create
 - To list active workspaces: `jj workspace list` (run from anywhere in the repo).
 - Each workspace has its own `@` (working-copy commit) but shares the underlying repo and op-log. Edits in one workspace don't appear at another's `@` until you `jj new` / `jj edit` onto the same commit there.
 - The harness still calls these "worktrees" in its UI and tool names — that's the abstraction it exposes. Mentally translate to "workspace" when reasoning about VCS behavior.
+- While a session is isolated in a workspace, the harness refuses `jj git …` commands (including `jj git push`) and any `cd` into the main checkout that runs git; this can't be turned off. Don't try to rephrase around it. Once I've approved a push, call `ExitWorktree` with `action: "keep"`, then run `jj git push -b <bookmark>` and any `gh` commands from the default workspace (the main checkout). Bookmarks are shared across workspaces, so this pushes the same commits. If more edits are needed afterwards, re-enter with `EnterWorktree` (`path:` the workspace) before editing.
 
 ### Commands
 
