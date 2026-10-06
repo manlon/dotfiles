@@ -14,8 +14,8 @@ usage() {
 usage: $PROG [MODE] [flags]
 
 MODES
-  review      PRs waiting on your review, plus ones you blocked and are
-              waiting on the author to answer (default)
+  review      PRs waiting on your review (conflicted ones split out), plus
+              ones you blocked and are waiting on the author to answer (default)
   changes     yours with feedback to address (changes requested, review comments)
   waiting     yours sitting with a reviewer: assigned but unreviewed, or
               re-requested after you addressed the feedback
@@ -159,6 +159,7 @@ EOF
 label() {
   case $1 in
     review) printf 'Waiting on your review' ;;
+    review-conflicts) printf 'Waiting on your review, but the author has conflicts to resolve' ;;
     awaiting-author) printf 'You requested changes, waiting on the author' ;;
     changes-requested) printf 'Changes requested' ;;
     commented) printf 'Review comments to address' ;;
@@ -176,7 +177,7 @@ hue() {
   case $1 in
     review) printf '%s' "$BLUE" ;;
     changes-requested | conflicts | ci-failing) printf '%s' "$RED" ;;
-    commented | unassigned) printf '%s' "$YELLOW" ;;
+    commented | unassigned | review-conflicts) printf '%s' "$YELLOW" ;;
     approved) printf '%s' "$GREEN" ;;
     *) printf '%s' "$CYAN" ;;
   esac
@@ -197,7 +198,10 @@ collect() {
 case $MODE in
   review | all)
     json=$(search 'user-review-requested:@me draft:false')
-    collect "$(jq -r "$JQ_PRELUDE"' prs | select(failing | not) | row("review")' <<<"$json")"
+    collect "$(jq -r "$JQ_PRELUDE"'
+      prs
+      | select(failing | not)
+      | row(if .mergeable == "CONFLICTING" then "review-conflicts" else "review" end)' <<<"$json")"
     HIDDEN=$(jq -r "$JQ_PRELUDE"' [prs | select(failing)] | length' <<<"$json")
 
     json=$(search 'reviewed-by:@me review:changes_requested -author:@me')
@@ -217,12 +221,12 @@ case $MODE in
 esac
 
 case $MODE in
-  review) ORDER=(review awaiting-author) ;;
+  review) ORDER=(review review-conflicts awaiting-author) ;;
   changes) ORDER=(changes-requested commented) ;;
   waiting) ORDER=(waiting re-review) ;;
   attention) ORDER=(conflicts ci-failing draft unassigned approved) ;;
   mine) ORDER=(changes-requested commented conflicts ci-failing unassigned waiting re-review approved draft) ;;
-  all) ORDER=(review changes-requested commented conflicts ci-failing unassigned waiting re-review approved draft awaiting-author) ;;
+  all) ORDER=(review review-conflicts changes-requested commented conflicts ci-failing unassigned waiting re-review approved draft awaiting-author) ;;
 esac
 
 if [[ $OUTPUT == tsv ]]; then
@@ -257,7 +261,7 @@ if [[ $OUTPUT == paste ]]; then
     printf '\n%s (%d)\n' "$(label "$bucket")" "$(grep -c '' <<<"$rows")"
     while IFS=$'\t' read -r _ id title author age url; do
       ((repos == 1)) && id="#${id##*#}"
-      [[ $bucket == review || $bucket == awaiting-author ]] && by="@$author · " || by=''
+      [[ $bucket =~ ^(review|review-conflicts|awaiting-author)$ ]] && by="@$author · " || by=''
       # The URL goes on its own line, bare: chat clients auto-link it, and
       # markdown link syntax gets mangled by Teams' compose box.
       printf '• %s — %s · %s%s\n  %s\n' "$id" "$title" "$by" "$age" "$url"
@@ -277,7 +281,7 @@ for bucket in "${ORDER[@]}"; do
   while IFS=$'\t' read -r _ id title author age url; do
     # Every PR in a "mine" bucket has the same author; only name it when the
     # bucket holds other people's work.
-    [[ $bucket == review || $bucket == awaiting-author ]] && by="@$author · " || by=''
+    [[ $bucket =~ ^(review|review-conflicts|awaiting-author)$ ]] && by="@$author · " || by=''
     printf '  %s%s%s  %s\n' "$CYAN" "$id" "$RESET" "$title"
     printf '  %s└ %s%s · %s%s\n' "$DIM" "$by" "$age" "$url" "$RESET"
     shown=$((shown + 1))
