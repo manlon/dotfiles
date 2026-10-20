@@ -139,3 +139,4 @@ alias dot='export $(rg -o "^[^#]*" .env | xargs)'
 
 #eval "$(oh-my-posh init zsh)"
 eval "$(oh-my-posh init zsh --config ~/.config/oh-my-posh/powerlevel10k_lean-nogit.omp.json)"
+export PATH="/opt/homebrew/opt/libpq/bin:$PATH"
