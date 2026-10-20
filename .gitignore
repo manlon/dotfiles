@@ -5,3 +5,7 @@
 # which resolves into this repo through the ~/.claude/skills symlink. It is a
 # per-machine cache with proprietary content and churns on every sync.
 .claude/skills/synced/
+
+# Skills removed from ~/.claude/skills (e.g. by a sync) are moved here rather
+# than deleted; same proprietary content, same churn.
+.claude/skills/.trash/
