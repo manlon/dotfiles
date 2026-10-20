@@ -102,7 +102,7 @@ Similarly, don't document a previous or rejected implementation ("we used to do 
 
 ## Code Review Output
 
-Every code review (the `/code-review` skill or an ad-hoc review) ends with three deliverables:
+Every code review (the `/code-review` skill or an ad-hoc review) ends with four deliverables:
 
 1. **`ReportFindings`** — the UI findings list. The forked reviewer often lacks the tool; the parent session must file it from the fork's results.
 2. **Durable write-up** at `~/src/support/reviews/pr-<n>-review.md` — never inside the repo under review, even though `reviews/` may be git-excluded there. Full evidence per finding: severity, quoted code, failure scenario, fix.
@@ -133,6 +133,8 @@ Every code review (the `/code-review` skill or an ad-hoc review) ends with three
    > [High · new] **A missing input makes the engine give a different answer instead of stopping** `reference.py:1373`. The engine needs to know which month is being closed, for example 202608, because that decides which supplier bills count as still open. The rule is: a bill is open if it is unpaid, or if it was paid on or after the first day of the close month. The month arrives as an environment variable. The SQLMesh leaf model treats that variable as optional: if it is missing, the leaf works out the month from the dates in the bank rows and passes it along. But the module that loads the supplier bills ignores what the leaf passed and reads the environment variable directly. When the variable is missing, that module does not fail; it quietly switches to counting only unpaid bills. So every bill that was paid during the month disappears from the open set, and the payments for those bills get classified as ordinary expenses instead of being matched to the bill they settled. The run finishes and reports success, with only a log line to hint that anything changed.
    >
    > *Proposed fix:* have the pipeline hand the month it already resolved to the bill loader the same way it hands over every other input, through a setter on the reference module, and delete the loader's own environment read along with its unpaid-only fallback. If the project would rather treat the month as strictly required, the alternative is for the leaf to refuse to run when the variable is unset, so both halves fail the same way.
+
+4. **Merge verdict**, in chat after the summary list: which findings, by number, you would block the merge on, with one sentence each on why that finding can't wait for a follow-up PR. If none, say so plainly. Pre-existing findings block only when the PR makes them materially easier to hit. This is your recommendation to me, not part of the shareable summary, so leave it out of `pr-<n>-summary.md`.
 
 On PRs created by other people, never include findings about my personal conventions that the code itself doesn't enforce — commit-message style, PR title/description format, and the like. The time to coordinate on those is out of band, not in the review of the PR at hand. (Violations of checked-in project conventions — project CLAUDE.md code rules, lint guards — are still fair game.)
 
